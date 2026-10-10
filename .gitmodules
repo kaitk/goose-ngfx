@@ -1,0 +1,6 @@
+[submodule "third_party/NoGraphicsAPI"]
+	path = third_party/NoGraphicsAPI
+	url = https://github.com/sebbbi/NoGraphicsAPI
+[submodule "third_party/goose"]
+	path = third_party/goose
+	url = https://github.com/aardappel/goose

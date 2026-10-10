@@ -1,0 +1,4 @@
+/build/
+samples/*.png
+samples/*.sav
+__pycache__/
