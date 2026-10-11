@@ -31,7 +31,7 @@ Windows 11, tested on an RTX 4090 (driver 617.42):
 | Visual Studio Build Tools | `C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools` | 2026 (18): clang-cl 22.1.3, MSVC 19.51 |
 | CMake, Ninja | the Build Tools' own, which Goose finds by itself | CMake 4.3.1 |
 | Vulkan SDK | `C:\VulkanSDK\1.4.363.0`, which also has `spirv-val` | 1.4.363 (1.4.357 or later) |
-| slangc | `..\slang\bin\slangc.exe`, beside this repository | 2026.18.2 or later |
+| slangc | `..\slang\bin\slangc.exe`, beside this repository, from Slang's `windows-x86_64` release | 2026.18.3 (2026.18.2 or later) |
 | Python | `PATH` | 3.14.6 |
 
 `goose toolchain` says which C compiler, CMake, and git the Goose compiler uses. On the
@@ -225,6 +225,12 @@ ref moves, compare both and move SDL in the same commit.
   (`github.com/kaitk/goose-ngfx/<ref>` for a GitHub source, `local/*` for a directory),
   then run again
   ([findings](goose-findings.md#a-package-whose-configure-fails-is-never-configured-again)).
+- On Windows, keep `GOOSE_HOME` short. Goose's cache adds about 110 characters below it
+  (`build\pkg\local\<hash>\<toolchain>\cmake`), and CMake's compiler check about 120
+  more, so a `GOOSE_HOME` much longer than `C:\Users\<name>\.goose` passes Windows'
+  260-character path limit, and the first configure fails with `RC1109: error creating
+  ...manifest.res` (clang-cl) or `C1041: cannot open program database` (MSVC). It then
+  stays failed, as above.
 - A fetched copy of the package bakes the slangc and NoGraphicsAPI paths of the machine
   that built it into the layer, as a local build does.
 - To try the package as users get it before pushing, commit, and import it from the

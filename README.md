@@ -100,8 +100,8 @@ cd samples && $GOOSE mini_minecraft.goose
 
 ### Windows
 
-With Visual Studio 2026 Build Tools, the Vulkan SDK, and slangc 2026.18.2 or later from
-[Slang's releases](https://github.com/shader-slang/slang/releases) in `NGFX_SLANGC`:
+With Visual Studio 2026 Build Tools and the Vulkan SDK, in a Developer PowerShell for
+VS 2026, which puts the Build Tools' CMake on `PATH`:
 
 ```powershell
 git clone https://github.com/aardappel/goose.git
@@ -109,6 +109,10 @@ git -C goose checkout 4f23f22
 cmake -S goose -B goose\build -G "Visual Studio 18 2026"
 cmake --build goose\build --config Release
 $env:GOOSE = "$PWD\goose\build\Release\goose.exe"
+
+mkdir slang
+curl.exe -sSfL https://github.com/shader-slang/slang/releases/download/v2026.18.3/slang-2026.18.3-windows-x86_64.tar.gz | tar -xz -C slang
+$env:NGFX_SLANGC = "$PWD\slang\bin\slangc.exe"
 
 git clone --recursive https://github.com/kaitk/goose-ngfx.git
 cd goose-ngfx

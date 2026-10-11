@@ -47,7 +47,9 @@ recorded in [goose-findings.md](goose-findings.md):
 Built and tested on Windows 11 with Vulkan: an NVIDIA RTX 4090, driver 617.42, Vulkan SDK
 1.4.363, slangc 2026.18.2, clang-cl 22.1.3 and MSVC 19.51, and Goose `2de6d1d`. The API
 check, every test (plainly and under `GOOSE_NGFX_SYNC=full`, run in the compiler and
-built), and every sample (built) pass, headless.
+built), and every sample (built) pass, headless. At Goose `4f23f22`, the README's quick
+start, from fresh clones and an empty `GOOSE_HOME`, passes the API check, every test, and
+every sample, with clang-cl and, tests built, with MSVC.
 
 Built and tested on macOS 26.3 with Metal 4: an Apple M1 Pro, Xcode 26.4 (Apple clang 21),
 slangc 2026.18.3, and Goose `2de6d1d`. The API check, every test (plainly and under
