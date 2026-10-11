@@ -354,7 +354,7 @@ uint64_t ngfx_buffer_address(ngfx_buffer b)
 void ngfx_buffer_range(ngfx_buffer b, ngfx_range* out)
 {
     *out = {};
-    if (!ngfx_need_device("range")) return;
+    if (!ngfx_need_open("range")) return;
     BufferSlot* s = buffer_slot(b);
     if (s) *out = {.address = uint64_t(reinterpret_cast<uintptr_t>(s->range.gpu)), .size = int64_t(s->range.size)};
 }

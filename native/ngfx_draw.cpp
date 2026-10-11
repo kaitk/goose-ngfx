@@ -599,7 +599,7 @@ void ngfx_draw_indexed(uint64_t root, uint64_t indices, int64_t indices_size, in
 
 void ngfx_draw_indirect(uint64_t root, uint64_t arguments, int64_t count, int64_t stride)
 {
-    if (!ngfx_need_device("draw_indirect") || !bind_for_draw("draw_indirect")) return;
+    if (!ngfx_need_open("draw_indirect") || !bind_for_draw("draw_indirect")) return;
     if (root % 16) ngfx_misuse("draw_indirect: a root at %#llx is not 16-byte aligned", (unsigned long long)root);
     GpuRange args;
     if (!indirect_arguments("draw_indirect", arguments, count, stride, 16, &args) || !count) return;
@@ -609,7 +609,7 @@ void ngfx_draw_indirect(uint64_t root, uint64_t arguments, int64_t count, int64_
 void ngfx_draw_indexed_indirect(uint64_t root, uint64_t indices, int64_t indices_size, int64_t index_size,
                                 uint64_t arguments, int64_t count, int64_t stride)
 {
-    if (!ngfx_need_device("draw_indexed_indirect") || !bind_for_draw("draw_indexed_indirect")) return;
+    if (!ngfx_need_open("draw_indexed_indirect") || !bind_for_draw("draw_indexed_indirect")) return;
     if (root % 16) ngfx_misuse("draw_indexed_indirect: a root at %#llx is not 16-byte aligned", (unsigned long long)root);
     if (!indices || !check_indices("draw_indexed_indirect", indices, index_size)) return;
     GpuRange args;
