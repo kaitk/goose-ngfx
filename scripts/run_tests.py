@@ -118,6 +118,7 @@ def main():
     goose = Path(args.goose)
     cc = ["--cc", args.cc] if args.cc else []
     bindir = REPO / "build" / "bin"
+    bindir.mkdir(parents=True, exist_ok=True)   # goose build -o doesn't make it
     res = Results()
 
     if not args.names:

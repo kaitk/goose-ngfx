@@ -23,7 +23,7 @@ Declare the package in your program's root file, and import it:
 
 ```goose
 import vec;
-import ngfx from "github.com/kaitk/goose-ngfx@main";   // or @<commit>, to pin it
+import ngfx from "github.com/kaitk/goose-ngfx@v0.1.0";
 
 fn main() {
     guard ngfx::open("Hello, ngfx", 640, 480) else { abort(ngfx::error()); }
@@ -44,8 +44,9 @@ and slangc 2026.18.2 or later, named by `NGFX_SLANGC` unless it's first on `PATH
 
 ## Status
 
-Built and tested on Windows 11 with Vulkan (RTX 4090), where the API check, every test,
-and every sample pass, run in the compiler and built. The ngfx code was tested on macOS
+Version 0.1.0: the API may still change. Built and tested on Windows 11 with Vulkan (RTX
+4090), where the API check, every test, and every sample pass, run in the compiler and
+built, with clang-cl and with MSVC. The ngfx code was tested on macOS
 26 with Metal 4 (M1 Pro) while it lived in the fork; this repository has not run on a Mac
 yet. Linux isn't supported: NoGraphicsAPI is headless-only there.
 

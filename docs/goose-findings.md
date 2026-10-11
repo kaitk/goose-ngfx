@@ -182,3 +182,15 @@ the build files, even once what made the configure fail is fixed:
 
 Workaround: delete the package's directory under `~/.goose/build/pkg/` and run again
 ([development.md](development.md#traps)).
+
+## `goose build -o` doesn't make the output's directory
+
+Found on `2de6d1d`. Status: open
+
+`goose build -o build/bin/cube.exe cube.goose` with no `build/bin` fails at the link:
+
+    LINK : fatal error LNK1104: cannot open file '...\build\bin\cube.exe'
+
+The C and the objects go under `~/.goose`, which the compiler makes as it needs.
+
+Workaround: `run_tests.py` makes `build/bin` first.
