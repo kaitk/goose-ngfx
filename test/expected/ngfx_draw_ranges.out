@@ -1,0 +1,5 @@
+frame_range: 48 bytes, aligned true
+both quads from frame memory: 256 white, top left true, bottom right true
+the second quad, from index 6: 128 white, top left false, bottom right true
+a buffer's range: 48 bytes at its address true
+the first quad, from the range: 128 white, top left true, bottom right false; the same from the buffer: true

@@ -35,6 +35,9 @@ typedef struct { uint32_t id; } ngfx_sampler;
 typedef struct { uint32_t id; } ngfx_pipeline;
 typedef struct { uint32_t id; } ngfx_compute_pipeline;
 
+/* GPU memory: an address and the bytes from it. */
+typedef struct { uint64_t address; int64_t size; } ngfx_range;
+
 /* One input event of a frame, as gfx's. */
 typedef struct {
     int32_t kind;
@@ -149,6 +152,7 @@ typedef struct {
     X(uint8_t, ngfx_read_buffer, (ngfx_buffer b, int64_t offset, ngfx_bytes out)) \
     X(int64_t, ngfx_buffer_size, (ngfx_buffer b)) \
     X(uint64_t, ngfx_buffer_address, (ngfx_buffer b)) \
+    X(void, ngfx_buffer_range, (ngfx_buffer b, ngfx_range *out)) \
     X(void, ngfx_release_buffer, (ngfx_buffer b)) \
     X(uint64_t, ngfx_frame_data, (ngfx_bytes data)) \
     /* Textures and samplers. */ \
@@ -183,7 +187,7 @@ typedef struct {
     X(void, ngfx_viewport, (float x, float y, float w, float h)) \
     X(void, ngfx_scissor, (int64_t x, int64_t y, int64_t w, int64_t h)) \
     X(void, ngfx_draw, (uint64_t root, int64_t vertices, int64_t instances, int64_t first_vertex, int64_t first_instance)) \
-    X(void, ngfx_draw_indexed, (uint64_t root, ngfx_buffer indices, int64_t index_size, int64_t count, int64_t instances, int64_t first_index, int64_t vertex_offset, int64_t first_instance)) \
+    X(void, ngfx_draw_indexed, (uint64_t root, uint64_t indices, int64_t indices_size, int64_t index_size, int64_t count, int64_t instances, int64_t first_index, int64_t vertex_offset, int64_t first_instance)) \
     X(void, ngfx_dispatch, (uint64_t root, int64_t x, int64_t y, int64_t z)) \
     /* Synchronization the program states: what `before` did, before `after` does it. */ \
     X(void, ngfx_barrier, (int32_t before, int32_t after))

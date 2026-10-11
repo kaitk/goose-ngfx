@@ -36,6 +36,8 @@ with `goose file.goose` or builds with `goose build file.goose`
   usually with `root(value)` or `frame_data(bytes)` in this frame's memory. The shader
   reads buffers through GPU addresses (`address(b)`), and textures and samplers through
   descriptor indices (`index(t)`, `storage_index(t, mip)`).
+- **`draw_indexed` takes its indices as a `Range`**, an address and a size: a buffer's
+  (`range(b)`, or the buffer itself) or this frame's memory (`frame_range(bytes)`).
 - **Clip space is y down**, depth 0 to 1, and matrices are row-major `float4x4`s.
   `perspective`, `ortho`, and `look_at` produce them.
 - **The program states the barriers between its own passes and dispatches**, with

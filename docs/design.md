@@ -167,6 +167,18 @@ compares with the `extern` declarations in `ngfx.goose`.
   the last frame drew, as in gfx, and `screenshot` after `frame()` sees the last frame.
   `index(screen())` holds only for the frame it is taken in. It costs one more screen
   and depth: 8 MB at 1280 x 800.
+- **`draw_indexed` takes its indices as a `Range`**, an address and a size, as
+  NoGraphicsAPI's takes any `GpuRange`, so indices can live in frame memory
+  (`frame_range`). The overloads that take a `Buffer` look its range up first, one more
+  extern per draw; a program that draws a buffer often can keep `range(b)`. The size
+  lets the layer check the draw's indices against it.
+- **`SV_VertexID` counts from `first_vertex` on Metal and from 0 on Vulkan.** Slang
+  compiles it to SPIR-V as `VertexIndex - BaseVertex` and to MSL as `[[vertex_id]]`,
+  which Metal starts at `vertexStart` and offsets by `baseVertex`; `SV_InstanceID`
+  excludes `first_instance` on both. Seen in slangc 2026.18.3's output, and measured on
+  Metal (2026-10-11). Shaders that fetch their own vertices take where they start from
+  their root, or draw indexed with `vertex_offset` 0, where `SV_VertexID` is the index on
+  both. `ngfx_ui` draws that way.
 - **Pipelines are created lazily per set of target formats**, as gfx does, because
   NoGraphicsAPI fixes formats in the pipeline.
 - **The name is `ngfx`.** It reads as gfx on NoGraphicsAPI. `gfx2` would presume it
@@ -254,6 +266,10 @@ compares with the `extern` declarations in `ngfx.goose`.
 - **ui draws through ngfx in a companion module, `ngfx_ui.goose`**, not in Goose's
   `ui`, which stays unchanged. ui's atlas texture ids are one namespace shared by both
   renderers, which is safe only because a program uses one.
+- **`ngfx_ui` draws indexed, with a root per texture.** ui's vertices and indices go
+  into frame memory once a frame; each draw command is a `draw_indexed` from its first
+  index, and a new root is made only when the texture changes. That is 2 externs per
+  draw command and 3 when the texture changes, against gfx ui's 3.
 
 ## Goose constraints met on the way
 

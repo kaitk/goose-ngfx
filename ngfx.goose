@@ -199,6 +199,10 @@ struct Sampler { id: u32 }
 struct Pipeline { id: u32 }
 struct ComputePipeline { id: u32 }
 
+// GPU memory: an address and the bytes from it. A buffer's is range(b), and
+// frame_range() makes one in this frame's memory.
+struct Range { address: u64, size: i64 }
+
 // Field defaults cannot name the constants above (a default may run before
 // any global is initialized), so they spell the values, and say which.
 struct TextureDesc {
@@ -490,6 +494,13 @@ extern "ngfx_read_buffer" fn read_buffer_into(b: Buffer, offset: i64, out: u8[:]
 extern "ngfx_buffer_size" fn buffer_size(b: Buffer) -> i64;
 // The buffer's GPU address, for a root: a pointer in the shader.
 extern "ngfx_buffer_address" fn address(b: Buffer) -> u64;
+extern "ngfx_buffer_range" fn range_into(b: Buffer, out: Range&);
+// The buffer's address and size.
+fn range(b: Buffer) -> Range {
+    var r = Range { address: 0, size: 0 };
+    range_into(b, r);
+    r
+}
 extern "ngfx_release_buffer" fn release(b: Buffer);
 
 // Reads back `out.len` bytes from `offset`, once the GPU has done
@@ -513,6 +524,8 @@ fn read_buffer<T>(b: Buffer, out: T[>..]&, count: i64) -> bool {
 // `data` copied into this frame's memory, and its GPU address, 16-byte
 // aligned. It lives until the GPU has finished the frame.
 extern "ngfx_frame_data" fn frame_data(data: const u8[:]) -> u64;
+// The same, with its size: indices that live one frame, for draw_indexed.
+fn frame_range(data: const u8[:]) -> Range { Range { address: frame_data(data), size: data.len } }
 
 // A root: any flat struct copied into this frame's memory, and the address
 // a draw or dispatch takes.
@@ -715,21 +728,42 @@ extern "ngfx_viewport" fn viewport(x: f32, y: f32, w: f32, h: f32);
 extern "ngfx_scissor" fn scissor(x: i64, y: i64, w: i64, h: i64);
 
 // `root` is a root's address (root(), frame_data()), or 0 for a shader
-// without one.
+// without one. SV_VertexID counts from first_vertex on Metal and from 0 on
+// Vulkan, as Slang compiles it, so a shader that fetches its own vertices
+// takes where they start from its root, or draws indexed.
 extern "ngfx_draw" fn draw(root: u64, vertices: i64, instances: i64, first_vertex: i64,
                               first_instance: i64);
 fn draw(root: u64, vertices: i64) { draw(root, vertices, 1, 0, 0) }
 fn draw_instanced(root: u64, vertices: i64, instances: i64) { draw(root, vertices, instances, 0, 0) }
-// Indices from a buffer, of index_size bytes: 2 for u16, 4 for u32.
-extern "ngfx_draw_indexed" fn draw_indexed(root: u64, indices: Buffer, index_size: i64,
-                                              count: i64, instances: i64, first_index: i64,
-                                              vertex_offset: i64, first_instance: i64);
-fn draw_indexed(root: u64, indices: Buffer, index_size: i64, count: i64) {
+// Indices of index_size bytes, 2 for u16 or 4 for u32, from `indices`: a
+// buffer, or a Range such as frame_range() makes. SV_VertexID is the index,
+// plus vertex_offset on Metal only, as for draw's first_vertex.
+extern "ngfx_draw_indexed" fn draw_indexed_raw(root: u64, indices: u64, indices_size: i64,
+                                                  index_size: i64, count: i64, instances: i64,
+                                                  first_index: i64, vertex_offset: i64,
+                                                  first_instance: i64);
+fn draw_indexed(root: u64, indices: Range, index_size: i64, count: i64, instances: i64,
+                first_index: i64, vertex_offset: i64, first_instance: i64) {
+    draw_indexed_raw(root, indices.address, indices.size, index_size, count, instances, first_index,
+                     vertex_offset, first_instance)
+}
+fn draw_indexed(root: u64, indices: Range, index_size: i64, count: i64) {
     draw_indexed(root, indices, index_size, count, 1, 0, 0, 0)
+}
+fn draw_indexed_instanced(root: u64, indices: Range, index_size: i64, count: i64, instances: i64) {
+    draw_indexed(root, indices, index_size, count, instances, 0, 0, 0)
+}
+fn draw_indexed(root: u64, indices: Buffer, index_size: i64, count: i64, instances: i64,
+                first_index: i64, vertex_offset: i64, first_instance: i64) {
+    draw_indexed(root, range(indices), index_size, count, instances, first_index, vertex_offset,
+                 first_instance)
+}
+fn draw_indexed(root: u64, indices: Buffer, index_size: i64, count: i64) {
+    draw_indexed(root, range(indices), index_size, count, 1, 0, 0, 0)
 }
 fn draw_indexed_instanced(root: u64, indices: Buffer, index_size: i64, count: i64,
                           instances: i64) {
-    draw_indexed(root, indices, index_size, count, instances, 0, 0, 0)
+    draw_indexed(root, range(indices), index_size, count, instances, 0, 0, 0)
 }
 
 // --- compute -------------------------------------------------------------------

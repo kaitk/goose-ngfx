@@ -31,19 +31,16 @@ struct Renderer {
 
 var renderer = Renderer { 0, ngfx::Pipeline { 0 }, ngfx::Sampler { 0 }, false, [0; 16] };
 
-// One draw command's root, as the shader declares it: the frame's vertices
-// and indices, where its indices start, its texture and the sampler, and
-// the target's size.
-struct Root { vertices: u64, indices: u64, first: u32, texture: u32, sampler: u32, size: float2 }
+// The root of the draw commands with one texture, as the shader declares
+// it: the frame's vertices, the texture and the sampler, and the target's
+// size.
+struct Root { vertices: u64, texture: u32, sampler: u32, size: float2 }
 
-// The vertex shader reads its own index, then its vertex: ui's triangles are
-// indexed, and an index buffer for draw_indexed would have to be a Buffer,
-// where this frame's data is memory with an address.
 let shader = """
     #include <NoGraphicsAPI/shader.slang>
 
     struct Vertex { float2 pos; float2 uv; uint color; };
-    struct Root { Vertex* vertices; uint* indices; uint first; uint texture; uint sampler; float2 size; };
+    struct Root { Vertex* vertices; uint texture; uint sampler; float2 size; };
     GPU_ROOT(Root, root);
 
     struct Varyings {
@@ -55,7 +52,7 @@ let shader = """
     // Pixels with y down, as NoGraphicsAPI's clip space has it.
     [shader("vertex")]
     Varyings uiVertex(uint vertex_id : SV_VertexID) {
-        Vertex v = root.vertices[root.indices[root.first + vertex_id]];
+        Vertex v = root.vertices[vertex_id];
         Varyings o;
         o.uv = v.uv;
         o.color = unpackUnorm4x8ToFloat(v.color);
@@ -118,7 +115,7 @@ fn render(c: ui::Context, target: ngfx::Texture, config: ui::ConvertConfig) {
     let draws = ui::draw_commands(c);
     if draws.len == 0 { return; }
     let vertices = ngfx::frame_data(bytes_of(ui::vertices(c)));
-    let indices = ngfx::frame_data(bytes_of(ui::indices(c)));
+    let indices = ngfx::frame_range(bytes_of(ui::indices(c)));
     let info = ngfx::texture_info(target);
     let size = float2 { info.width, info.height };
     let sampler = ngfx::index(renderer.sampler);
@@ -127,6 +124,8 @@ fn render(c: ui::Context, target: ngfx::Texture, config: ui::ConvertConfig) {
     ngfx::begin_pass(pass);
     ngfx::bind(renderer.pipeline);
     var first = 0;
+    var texture: u32 = 0;
+    var root: u64 = 0;
     for d in draws {
         // Scissors in whole pixels, inside the target.
         let x0 = clamp(floor(d.clip_rect.x) as! i64, 0, info.width);
@@ -135,10 +134,12 @@ fn render(c: ui::Context, target: ngfx::Texture, config: ui::ConvertConfig) {
         let y1 = clamp(ceil(d.clip_rect.y + d.clip_rect.h) as! i64, 0, info.height);
         if x1 > x0 && y1 > y0 {
             ngfx::scissor(x0, y0, x1 - x0, y1 - y0);
-            let root = ngfx::root(Root { vertices: vertices, indices: indices, first: first as u32,
-                                         texture: ngfx::index(ngfx::Texture { d.texture }),
+            if root == 0 || d.texture != texture {
+                texture = d.texture;
+                root = ngfx::root(Root { vertices: vertices, texture: ngfx::index(ngfx::Texture { texture }),
                                          sampler: sampler, size: size });
-            ngfx::draw(root, d.elem_count);
+            }
+            ngfx::draw_indexed(root, indices, 4, d.elem_count, 1, first, 0, 0);
         }
         first += d.elem_count;
     }

@@ -494,26 +494,33 @@ void ngfx_draw(uint64_t root, int64_t vertices, int64_t instances, int64_t first
          uint32(first_vertex), uint32(first_instance));
 }
 
-void ngfx_draw_indexed(uint64_t root, ngfx_buffer indices, int64_t index_size, int64_t count, int64_t instances,
-                          int64_t first_index, int64_t vertex_offset, int64_t first_instance)
+void ngfx_draw_indexed(uint64_t root, uint64_t indices, int64_t indices_size, int64_t index_size, int64_t count,
+                       int64_t instances, int64_t first_index, int64_t vertex_offset, int64_t first_instance)
 {
     if (!ngfx_need_open("draw_indexed") || !bind_for_draw("draw_indexed")) return;
     if (root % 16) ngfx_misuse("draw_indexed: a root at %#llx is not 16-byte aligned", (unsigned long long)root);
-    BufferSlot* b = g.buffers.get(indices.id);
-    if (!b) return;
+    // A buffer's range of 0 has been reported already.
+    if (!indices) return;
     if (index_size != 2 && index_size != 4)
     {
         ngfx_misuse("draw_indexed: indices of %lld bytes, not 2 or 4", (long long)index_size);
         return;
     }
-    if (count <= 0 || instances <= 0) return;
-    if (uint64(first_index + count) * uint64(index_size) > b->range.size)
+    if (indices % uint64(index_size))
     {
-        ngfx_misuse("draw_indexed: %lld indices from %lld in a buffer of %llu bytes", (long long)count,
-                    (long long)first_index, (unsigned long long)b->range.size);
+        ngfx_misuse("draw_indexed: indices at %#llx, not aligned to their %lld bytes", (unsigned long long)indices,
+                    (long long)index_size);
         return;
     }
-    draw_indexed(g.commands, reinterpret_cast<const void*>(uintptr_t(root)), b->range,
+    if (count <= 0 || instances <= 0) return;
+    if (first_index < 0 || indices_size < 0 || uint64(first_index + count) * uint64(index_size) > uint64(indices_size))
+    {
+        ngfx_misuse("draw_indexed: %lld indices from %lld in a range of %lld bytes", (long long)count,
+                    (long long)first_index, (long long)indices_size);
+        return;
+    }
+    draw_indexed(g.commands, reinterpret_cast<const void*>(uintptr_t(root)),
+                 {.gpu = reinterpret_cast<void*>(uintptr_t(indices)), .size = uint64(indices_size)},
                  index_size == 2 ? IndexType::uint16 : IndexType::uint32, uint32(count), uint32(instances),
                  uint32(first_index), int32(vertex_offset), uint32(first_instance));
 }
