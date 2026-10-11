@@ -181,5 +181,9 @@ ref moves, compare both and move SDL in the same commit.
 - `goose run` prints its compile summary on stderr; a test's stdout is the program's
   alone.
 - A path source must start with `./` or `../`: `".."` is taken for a git source.
+- A first build that fails at configure, as it does without a new enough slangc, stays
+  failed: delete the package's directory under `~/.goose/build/pkg/` (`goose-ngfx-*`
+  for a git source, `local/*` for a directory), then run again
+  ([findings](goose-findings.md#a-package-whose-configure-fails-is-never-configured-again)).
 - A fetched copy of the package bakes the slangc and NoGraphicsAPI paths of the machine
   that built it into the layer, as a local build does.

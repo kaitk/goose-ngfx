@@ -166,3 +166,19 @@ pass both ways.
 Workaround: `third_party/SDL` is pinned to the commit `goose_gfx` pins, and
 `CMakeLists.txt` configures it with the same options. Moving either pin means moving
 both ([development.md](development.md#move-the-pins)).
+
+## A package whose configure fails is never configured again
+
+Found on `2de6d1d`. Status: open
+
+The compiler configures a CMake package only when its build directory has no
+`CMakeCache.txt` (`src/native.h`, `BuildCMakePart`). A configure that fails writes one
+anyway, so every later run skips the configure and only builds, which fails for want of
+the build files, even once what made the configure fail is fixed:
+
+    No slangc 2026.18.2 or later (NGFX_SLANGC-NOTFOUND): set NGFX_SLANGC ...
+    # set NGFX_SLANGC, run again:
+    ninja: error: loading 'build.ninja': The system cannot find the file specified.
+
+Workaround: delete the package's directory under `~/.goose/build/pkg/` and run again
+([development.md](development.md#traps)).
