@@ -94,7 +94,7 @@ cd samples; & $env:GOOSE mini_minecraft.goose
 
 | What | Pin | Why |
 |---|---|---|
-| Goose | `aardappel/goose` `2de6d1d` (`master`, 2026-10-11): the compiler tested with | The language, the package system, and the runtime ABI change often |
+| Goose | `aardappel/goose` `4f23f22` (`master`, 2026-10-11): the compiler tested with | The language, the package system, and the runtime ABI change often |
 | NoGraphicsAPI | `sebbbi/NoGraphicsAPI` `0400414` | Its API is young and changes without notice |
 | SDL | `libsdl-org/SDL` `fa2c02b`, the commit `aardappel/goose_gfx` `v1` pins | A program that also imports `audio` or `ui` links both packages' SDL ([findings](docs/goose-findings.md#two-packages-cant-share-a-c-library)) |
 
