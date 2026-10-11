@@ -299,9 +299,9 @@ ngfx_buffer ngfx_create_buffer(int64_t size, ngfx_bytes data)
     if (!s) return h;
     *s = fresh;
     // The data, then zeros: a fresh allocation holds whatever was there.
-    std::vector<byte> bytes(static_cast<size_t>(size), 0);
-    if (data.len > 0) memcpy(bytes.data(), data.data, size_t(data.len));
-    upload(s->range, bytes.data(), uint64(size));
+    byte* gpu = static_cast<byte*>(s->range.gpu);
+    if (data.len > 0) upload({.gpu = gpu, .size = uint64(data.len)}, data.data, uint64(data.len));
+    if (data.len < size) upload({.gpu = gpu + data.len, .size = uint64(size - data.len)}, nullptr, uint64(size - data.len));
     return h;
 }
 

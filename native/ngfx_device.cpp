@@ -153,7 +153,20 @@ void upload(GpuRange destination, const void* data, uint64 size)
             break;
         }
     }
-    g.uploads->upload_buffer({.gpu = destination.gpu, .size = size}, ByteSpan(data, size_t(size)));
+    if (data)
+    {
+        g.uploads->upload_buffer({.gpu = destination.gpu, .size = size}, ByteSpan(data, size_t(size)));
+    }
+    else
+    {
+        // UploadQueue copies only from memory, so zeros come from a block of them.
+        static const byte zeros[1 << 20] = {};
+        for (uint64 at = 0; at < size; at += sizeof zeros)
+        {
+            const uint64 n = size - at < sizeof zeros ? size - at : sizeof zeros;
+            g.uploads->upload_buffer({.gpu = static_cast<byte*>(destination.gpu) + at, .size = n}, ByteSpan(zeros, size_t(n)));
+        }
+    }
     g.uploaded.push_back({.gpu = destination.gpu, .size = size});
 }
 

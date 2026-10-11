@@ -323,9 +323,9 @@ CommandBuffer* begin_setup();
 void end_setup(CommandBuffer* commands);
 // Runs `fn(arg)` once the GPU has finished every use recorded so far.
 void defer_release(void (*fn)(void*), void* arg);
-// Uploads `size` bytes to `destination`, flushing the batch first when an
-// earlier upload in it overlaps (upload_queue.hpp: flush between overlapping
-// transfer writes).
+// Uploads `size` bytes to `destination`, or zeros when `data` is null,
+// flushing the batch first when an earlier upload in it overlaps
+// (upload_queue.hpp: flush between overlapping transfer writes).
 void upload(GpuRange destination, const void* data, uint64 size);
 // Uploads to one region of `s`, as upload does to a buffer: a mip of one
 // slice, its extent explicit.
