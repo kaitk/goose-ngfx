@@ -3,6 +3,7 @@
 // are over gfx. ui is unchanged: this draws the triangles ui::convert makes
 // and feeds ui the frame's ngfx events. A program shows its ui with
 //
+//   ngfx_ui::prepare();     // once, before the frame loop (optional)
 //   ngfx_ui::input(ctx);    // after ngfx::frame(), before any window
 //   ...windows...
 //   ngfx_ui::render(ctx);   // after the frame's own passes
@@ -70,6 +71,8 @@ let shader = """
 
 fn make_renderer() {
     renderer.pipeline = ngfx::pipeline(ngfx::slang(shader), ngfx::PipelineDesc { blend: ngfx::BLEND_ALPHA });
+    // render()'s pipeline for the screen, made now rather than at the first draw.
+    ngfx::prepare(renderer.pipeline, ngfx::screen(), ngfx::Texture { 0 });
     renderer.sampler = ngfx::sampler(ngfx::LINEAR, ngfx::CLAMP);
     renderer.text_input = false;
     renderer.opened = ngfx::open_count();
@@ -104,12 +107,18 @@ fn upload_atlases() {
     }
 }
 
+// Makes what render() draws with, if it isn't made yet, so that drawing over
+// the screen compiles no shaders in a frame: once, before the frame loop.
+fn prepare() {
+    if renderer.opened != ngfx::open_count() { make_renderer(); }
+}
+
 // Draws the context's frame over `target`, an ngfx texture of COLOR_TARGET
 // usage, with alpha blending; not inside a pass. The frame's windows must
 // have ended.
 fn render(c: ui::Context, target: ngfx::Texture, config: ui::ConvertConfig) {
     ui::check();
-    if renderer.opened != ngfx::open_count() { make_renderer(); }
+    prepare();
     upload_atlases();
     ui::convert(c, config);
     let draws = ui::draw_commands(c);

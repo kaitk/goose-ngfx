@@ -36,6 +36,8 @@ with `goose file.goose` or builds with `goose build file.goose`
   usually with `root(value)` or `frame_data(bytes)` in this frame's memory. The shader
   reads buffers through GPU addresses (`address(b)`), and textures and samplers through
   descriptor indices (`index(t)`, `storage_index(t, mip)`).
+- **Pipelines are made for the formats of the passes they draw in**, at their first draw
+  into each, or before it with `prepare(pipeline, pass)` or `prepare_screen(pipeline)`.
 - **`draw_indexed` takes its indices as a `Range`**, an address and a size: a buffer's
   (`range(b)`, or the buffer itself) or this frame's memory (`frame_range(bytes)`).
 - **Indirect draws and dispatches** (`draw_indirect`, `draw_indexed_indirect`,
@@ -84,5 +86,7 @@ let c = ngfx::slang_file("shaders/world.slang");
 `import ngfx.ngfx_ui;` draws Goose's
 [`ui`](https://github.com/aardappel/goose_gfx/blob/v1/docs/ui.md) through ngfx:
 `ngfx_ui::input(c)` after `ngfx::frame()`, and `ngfx_ui::render(c)` or
-`ngfx_ui::render(c, target)`, as `ui`'s gfx functions do. `samples/ui_todo.goose` uses
+`ngfx_ui::render(c, target)`, as `ui`'s gfx functions do. `ngfx_ui::prepare()`, once
+before the frame loop, makes its pipeline for the screen then rather than in the first
+frame. `samples/ui_todo.goose` uses
 it.

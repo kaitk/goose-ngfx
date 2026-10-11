@@ -81,6 +81,8 @@ fn main() {
     let window = ui::WINDOW_BORDER | ui::WINDOW_MOVABLE | ui::WINDOW_SCALABLE |
                  ui::WINDOW_TITLE | ui::WINDOW_MINIMIZABLE;
     var drawn = 0;
+    // The ui's pipeline, made for the screen before the first frame.
+    ngfx_ui::prepare();
 
     while ngfx::frame() {
         if ngfx::key_pressed("Escape") { break; }

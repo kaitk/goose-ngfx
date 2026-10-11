@@ -1450,6 +1450,11 @@ fn main() {
     if sampler.id == 0 || world_pipeline.id == 0 || sky_pipeline.id == 0 || hud_pipeline.id == 0 {
         abort(str("renderer: ", ngfx::error()));
     }
+    // Made for the screen now, rather than at the first frame's draws.
+    if !ngfx::prepare_screen(world_pipeline) || !ngfx::prepare_screen(sky_pipeline) ||
+       !ngfx::prepare_screen(hud_pipeline) {
+        abort(str("renderer: ", ngfx::error()));
+    }
     rebuild_dirty();
     var crafting = false;
     var paused = !ngfx::focused();

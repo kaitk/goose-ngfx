@@ -240,7 +240,7 @@ struct SamplerDesc {
 
 // What a pipeline adds to its shaders. It is not tied to the formats it
 // draws into: it is made for the targets of each pass it is bound in, the
-// first time.
+// first time, unless prepare() made it for them before.
 struct PipelineDesc {
     cull: i32 = 0,          // CULL_NONE
     clockwise: bool = false,        // front faces wind clockwise on the screen
@@ -698,6 +698,20 @@ fn pipeline(shader: const u8[:], desc: PipelineDesc) -> Pipeline {
 }
 fn pipeline(shader: const u8[:]) -> Pipeline { pipeline(shader, PipelineDesc {}) }
 extern "ngfx_release_pipeline" fn release(p: Pipeline);
+// Makes the pipeline for the formats of `pass`'s targets now, as its first
+// draw into them would, so the driver compiles its shaders before the frame
+// loop rather than in a frame. A pipeline can be prepared for several sets
+// of targets. False, with error() set, if it can't draw into them.
+extern "ngfx_prepare_pipeline" fn prepare_desc(p: Pipeline, pass: const PassDesc&) -> bool;
+fn prepare(p: Pipeline, pass: PassDesc) -> bool { prepare_desc(p, pass) }
+// For passes into `target` and `depth`, or Texture { 0 } for none.
+fn prepare(p: Pipeline, target: Texture, depth: Texture) -> bool {
+    var d = PassDesc { depth: depth };
+    d.color[0] = target;
+    prepare_desc(p, d)
+}
+// For begin_screen's passes.
+fn prepare_screen(p: Pipeline) -> bool { prepare(p, screen(), screen_depth()) }
 
 // The compute entry point `entry` of `shader`, or its only one; the thread
 // group size is the one its numthreads declares.

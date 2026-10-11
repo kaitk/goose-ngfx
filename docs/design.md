@@ -186,7 +186,13 @@ compares with the `extern` declarations in `ngfx.goose`.
   `DrawArguments`, `DrawIndexedArguments`, and `DispatchArguments` spell the layouts,
   which Vulkan's and Metal's indirect argument structs share.
 - **Pipelines are created lazily per set of target formats**, as gfx does, because
-  NoGraphicsAPI fixes formats in the pipeline.
+  NoGraphicsAPI fixes formats in the pipeline. `ngfx::prepare(pipeline, PassDesc)`
+  creates one ahead, so the driver compiles its shaders before the frame loop, as
+  NoGraphicsAPI's examples create every pipeline first. It takes a `PassDesc` rather than
+  format fields in `PipelineDesc`: the formats then come from the textures the passes
+  draw into, so they can't drift from them, `PipelineDesc` keeps gfx's fields, and one
+  pipeline can be prepared for several passes. The samples prepare theirs for the
+  screen (`prepare_screen`), and `ngfx_ui::prepare()` does the same for the ui.
 - **The name is `ngfx`.** It reads as gfx on NoGraphicsAPI. `gfx2` would presume it
   replaces gfx, `gpu` is NoGraphicsAPI's C++ namespace, and `nogfx` reads as "no graphics".
 - `CULL_BACK` with counterclockwise front faces is NoGraphicsAPI's `CullMode::clockwise`,

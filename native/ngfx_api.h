@@ -80,7 +80,8 @@ typedef struct {
 } ngfx_sampler_desc;
 
 /* What a pipeline adds to its shaders. The formats it draws into come from
-   the pass it is bound in: one NoGraphicsAPI PSO per set of them. */
+   the pass it is bound in, or one ngfx_prepare_pipeline names: one
+   NoGraphicsAPI PSO per set of them. */
 typedef struct {
     int32_t cull;
     uint8_t clockwise;          /* front faces wind clockwise */
@@ -179,6 +180,7 @@ typedef struct {
     X(ngfx_compute_pipeline, ngfx_create_compute_pipeline, (ngfx_bytes shader, ngfx_bytes entry)) \
     X(void, ngfx_release_compute_pipeline, (ngfx_compute_pipeline p)) \
     X(ngfx_compute_pipeline, ngfx_mip_pipeline, (void)) \
+    X(uint8_t, ngfx_prepare_pipeline, (ngfx_pipeline p, const ngfx_pass_desc *desc)) \
     /* Passes, drawing and compute. */ \
     X(uint8_t, ngfx_begin_pass, (const ngfx_pass_desc *desc)) \
     X(void, ngfx_end_pass, (void)) \

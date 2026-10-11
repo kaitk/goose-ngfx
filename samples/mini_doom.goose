@@ -1464,6 +1464,8 @@ fn main() {
     let hud_pipeline = ngfx::pipeline(ngfx::slang(shader_common, hud_shader),
         ngfx::PipelineDesc { blend: ngfx::BLEND_ALPHA });
     require(sampler.id != 0 && world_pipeline.id != 0 && hud_pipeline.id != 0, ngfx::error());
+    // Made for the screen now, rather than at the first frame's draws.
+    require(ngfx::prepare_screen(world_pipeline) && ngfx::prepare_screen(hud_pipeline), ngfx::error());
     var paused = !ngfx::focused();
     var help = false;
     var map = false;

@@ -1,0 +1,7 @@
+prepared for the screen: true
+prepared for a target without depth: true
+prepared again: true
+screen, prepared: 255,0,0
+screen, lazy: 0,255,0
+target, prepared: 0,0,255
+target, lazy: 255,255,0

@@ -75,6 +75,41 @@ PSO* pipeline_for(PipelineSlot* p, const Targets& t)
     return pso;
 }
 
+// The formats of a pass's targets, checked as begin_pass and prepare take
+// them. It looks the textures up without marking the screen used: a
+// screen's instances share their formats.
+bool targets_of(const ngfx_pass_desc& d, Targets* out, const char* what)
+{
+    Targets t{};
+    uint32 width = 0, height = 0;
+    for (uint32 i = 0; i < 4 && d.color[i].id; ++i)
+    {
+        TextureSlot* s = g.textures.get(d.color[i].id);
+        if (!s) return false;
+        if (!has(s->desc.usage, TextureUsage::color_attachment))
+            return ngfx_misuse("%s: a color target made without COLOR_TARGET usage", what);
+        t.color[i] = s->desc.format;
+        t.count = i + 1;
+        width = s->desc.extent.x;
+        height = s->desc.extent.y;
+    }
+    if (d.depth.id)
+    {
+        TextureSlot* s = g.textures.get(d.depth.id);
+        if (!s) return false;
+        if (!has(s->desc.usage, TextureUsage::depth_stencil_attachment))
+            return ngfx_misuse("%s: a depth target made without DEPTH_TARGET usage", what);
+        t.depth = s->desc.format;
+        if (get_texture_format_info(s->desc.format).stencil) t.stencil = s->desc.format;
+        if (t.count && (s->desc.extent.x != width || s->desc.extent.y != height))
+            return ngfx_misuse("%s: a depth target of %u x %u for color targets of %u x %u", what, s->desc.extent.x,
+                               s->desc.extent.y, width, height);
+    }
+    if (!t.count && !d.depth.id) return ngfx_misuse("%s: no targets", what);
+    *out = t;
+    return true;
+}
+
 // Binds the pipeline for this pass's targets, and the depth state that goes
 // with it (begin_render_pass resets it), at the first draw after a bind or
 // begin_pass, both of which clear bound_pso.
@@ -374,21 +409,17 @@ uint8_t ngfx_begin_pass(const ngfx_pass_desc* desc)
     for (uint32 i = 0; i < 4 && d.color[i].id; ++i)
         if (d.clear_color) renew_screen(d.color[i].id);
     if (d.depth.id && d.clear_depth) renew_screen(d.depth.id);
-    ColorAttachment colors[4];
     Targets t{};
+    if (!targets_of(d, &t, "begin_pass")) return 0;
+    ColorAttachment colors[4];
     uint32 width = 0, height = 0;
-    for (uint32 i = 0; i < 4 && d.color[i].id; ++i)
+    for (uint32 i = 0; i < t.count; ++i)
     {
         TextureSlot* s = texture_slot(d.color[i]);
-        if (!s) return 0;
-        if (!has(s->desc.usage, TextureUsage::color_attachment))
-            return ngfx_misuse("begin_pass: a color target made without COLOR_TARGET usage");
         RenderView* view = render_view(s, uint32(d.mip), uint32(d.layer));
         if (!view) return ngfx_fail("begin_pass: creating a render view");
         colors[i] = {.render_view = view, .load = d.clear_color ? LoadOp::clear : LoadOp::load,
                      .clear = {.x = d.color_value.x, .y = d.color_value.y, .z = d.color_value.z, .w = d.color_value.w}};
-        t.color[i] = s->desc.format;
-        t.count = i + 1;
         width = s->desc.extent.x;
         height = s->desc.extent.y;
     }
@@ -397,24 +428,12 @@ uint8_t ngfx_begin_pass(const ngfx_pass_desc* desc)
     if (d.depth.id)
     {
         TextureSlot* s = texture_slot(d.depth);
-        if (!s) return 0;
-        if (!has(s->desc.usage, TextureUsage::depth_stencil_attachment))
-            return ngfx_misuse("begin_pass: a depth target made without DEPTH_TARGET usage");
         RenderView* view = render_view(s, 0, 0);
         if (!view) return ngfx_fail("begin_pass: creating a render view");
         const LoadOp load = d.clear_depth ? LoadOp::clear : LoadOp::load;
         depth = {.render_view = view, .load = load, .clear = d.depth_value};
-        t.depth = s->desc.format;
-        if (get_texture_format_info(s->desc.format).stencil)
-        {
-            stencil = {.render_view = view, .load = load};
-            t.stencil = s->desc.format;
-        }
-        if (t.count && (s->desc.extent.x != width || s->desc.extent.y != height))
-            return ngfx_misuse("begin_pass: a depth target of %u x %u for color targets of %u x %u", s->desc.extent.x,
-                               s->desc.extent.y, width, height);
+        if (t.stencil != Format::undefined) stencil = {.render_view = view, .load = load};
     }
-    if (!t.count && !d.depth.id) return ngfx_misuse("begin_pass: no targets");
     CommandBuffer* commands = frame_commands();
     if (g.full_sync) full_sync_barrier(commands);
     // The barriers whose two sides the module sees: the targets, named here
@@ -463,6 +482,15 @@ uint8_t ngfx_begin_pass(const ngfx_pass_desc* desc)
     g.pass_height = height >> d.mip ? height >> d.mip : 1;
     g.bound_pso = nullptr;
     return 1;
+}
+
+uint8_t ngfx_prepare_pipeline(ngfx_pipeline handle, const ngfx_pass_desc* desc)
+{
+    if (!ngfx_need_device("prepare")) return 0;
+    PipelineSlot* p = g.pipelines.get(handle.id);
+    Targets t{};
+    if (!p || !targets_of(*desc, &t, "prepare")) return 0;
+    return pipeline_for(p, t) != nullptr;
 }
 
 void ngfx_end_pass(void)

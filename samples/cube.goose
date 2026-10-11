@@ -108,6 +108,8 @@ fn main() {
         """);
     let cube_pipeline = ngfx::pipeline(cube_shader, ngfx::PipelineDesc {
         cull: ngfx::CULL_BACK, depth_test: true, depth_write: true });
+    // Made for the screen now, rather than at the first frame's draw.
+    ngfx::prepare_screen(cube_pipeline);
 
     var yaw: f32 = 0.6;
     var pitch: f32 = 0.5;
