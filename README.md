@@ -11,7 +11,7 @@ struct the program fills, and shaders fetch their own vertices through pointers.
 Goose's samples are ported to it: a spinning cube, a ui to-do list, Mini Minecraft, and
 Mini Doom.
 
-This repository is a library for Goose, not a change to Goose (Kait, 2026-10-10). It
+This repository is a library for Goose, not a change to Goose. It
 started as `ngfx` in a Goose fork. It moved out because Goose keeps its toolchain
 light: its graphics compile GLSL in-process, with no Vulkan SDK or external shader
 compiler, and ngfx needs both. Gaps found in Goose go to
@@ -23,7 +23,7 @@ Declare the package in your program's root file, and import it:
 
 ```goose
 import vec;
-import ngfx from "github.com/kaitk/goose-ngfx@v0.1.0";
+import ngfx from "github.com/kaitk/goose-ngfx@v0.1.1";
 
 fn main() {
     guard ngfx::open("Hello, ngfx", 640, 480) else { abort(ngfx::error()); }
@@ -37,18 +37,21 @@ fn main() {
 `goose hello.goose` runs it in the compiler's process; `goose build hello.goose` makes an
 executable. The first time, the compiler fetches the package with its submodules into
 `~/.goose` and builds its native part with CMake, which takes a few minutes. The machine
-needs what that build needs: on Windows, Visual Studio 2026 Build Tools, the Vulkan SDK,
-and slangc 2026.18.2 or later, named by `NGFX_SLANGC` unless it's first on `PATH`
-([docs/development.md](docs/development.md)). `import ngfx.ngfx_ui;` draws Goose's
-`ui` through ngfx ([docs/api.md](docs/api.md#ngfx_ui)).
+needs what that build needs, and slangc 2026.18.2 or later, named by `NGFX_SLANGC`
+unless it's first on `PATH`:
+
+- macOS 26: Xcode 26 with its Metal toolchain, and CMake.
+- Windows: Visual Studio 2026 Build Tools and the Vulkan SDK.
+
+[docs/development.md](docs/development.md) has the details. `import ngfx.ngfx_ui;` draws
+Goose's `ui` through ngfx ([docs/api.md](docs/api.md#ngfx_ui)).
 
 ## Status
 
-Version 0.1.0: the API may still change. Built and tested on Windows 11 with Vulkan (RTX
-4090), where the API check, every test, and every sample pass, run in the compiler and
-built, with clang-cl and with MSVC. The ngfx code was tested on macOS
-26 with Metal 4 (M1 Pro) while it lived in the fork; this repository has not run on a Mac
-yet. Linux isn't supported: NoGraphicsAPI is headless-only there.
+Version 0.1.1: the API may still change. Built and tested on macOS 26 with Metal 4 (M1
+Pro) and on Windows 11 with Vulkan (RTX 4090). On both, the API check, every test, and
+every sample pass, run in the compiler and built; on Windows, with clang-cl and with
+MSVC. Linux isn't supported: NoGraphicsAPI is headless-only there.
 
 ## Layout
 
@@ -70,10 +73,43 @@ so they run against the working tree.
 
 ## Quick start
 
-With a Goose compiler built at the pin below, in `GOOSE`
-([docs/development.md](docs/development.md#get-the-source)):
+Each of these builds the Goose compiler at the pin below, gets slangc, runs the tests,
+and plays Mini Minecraft ([docs/development.md](docs/development.md)).
+
+### macOS
+
+With Xcode 26 and its Metal toolchain (`xcodebuild -downloadComponent MetalToolchain`),
+and CMake (`brew install cmake`), on Apple silicon:
+
+```sh
+git clone https://github.com/aardappel/goose.git
+git -C goose checkout 4f23f22
+cmake -S goose -B goose/build -DCMAKE_BUILD_TYPE=Release
+cmake --build goose/build -j
+export GOOSE=$PWD/goose/build/goose
+
+mkdir slang
+curl -sSfL https://github.com/shader-slang/slang/releases/download/v2026.18.3/slang-2026.18.3-macos-aarch64.tar.gz | tar -xz -C slang
+export NGFX_SLANGC=$PWD/slang/bin/slangc
+
+git clone --recursive https://github.com/kaitk/goose-ngfx.git
+cd goose-ngfx
+python3 scripts/run_tests.py
+cd samples && $GOOSE mini_minecraft.goose
+```
+
+### Windows
+
+With Visual Studio 2026 Build Tools, the Vulkan SDK, and slangc 2026.18.2 or later from
+[Slang's releases](https://github.com/shader-slang/slang/releases) in `NGFX_SLANGC`:
 
 ```powershell
+git clone https://github.com/aardappel/goose.git
+git -C goose checkout 4f23f22
+cmake -S goose -B goose\build -G "Visual Studio 18 2026"
+cmake --build goose\build --config Release
+$env:GOOSE = "$PWD\goose\build\Release\goose.exe"
+
 git clone --recursive https://github.com/kaitk/goose-ngfx.git
 cd goose-ngfx
 python scripts/run_tests.py

@@ -1,32 +1,49 @@
 # Development
 
-Windows with Vulkan is where this repository is built and tested. macOS with Metal 4
-should build the same way, with Xcode in place of Visual Studio and the Vulkan SDK, but
-hasn't been tried since the code left the Goose fork.
+This repository is built and tested on macOS with Metal 4 and on Windows with Vulkan.
+The build and the tests are the same on both; the toolchains differ.
 
 ## Toolchain
 
-| Tool | Where on Kait's machine | Version used (2026-10-11) |
+On both, the Goose compiler is built from `aardappel/goose` at the pin in `README.md`,
+and named by `GOOSE` or found on `PATH`. Python runs the scripts.
+
+macOS, tested on an M1 Pro (2026-10-11):
+
+| Tool | Where | Version |
 |---|---|---|
-| Goose compiler | built from `aardappel/goose` at the pin in `README.md`; `GOOSE` or `PATH` | `2de6d1d` |
+| macOS | | 26.3.1 |
+| Xcode, with its Metal toolchain | `xcodebuild -downloadComponent MetalToolchain` adds the toolchain | 26.4: Apple clang 21, `metal` 32023.883 |
+| CMake | Homebrew | 4.4.4 |
+| slangc | `../slang/bin/slangc`, beside this repository, from Slang's `macos-aarch64` release | 2026.18.3 (2026.18.2 or later) |
+| Python | `python3` | 3.14.8 |
+
+The Mac needs no Vulkan SDK or `spirv-val`: NoGraphicsAPI's backend there is Metal, and
+the layer compiles its shaders with Xcode's `metal` and `metallib`. Without Ninja, the
+compiler builds packages with Unix Makefiles. Fetch Slang with `curl`, as the README's
+quick start does. A browser's download carries macOS's quarantine attribute, which
+`xattr -dr com.apple.quarantine slang` removes.
+
+Windows 11, tested on an RTX 4090 (driver 617.42):
+
+| Tool | Where | Version |
+|---|---|---|
 | Visual Studio Build Tools | `C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools` | 2026 (18): clang-cl 22.1.3, MSVC 19.51 |
 | CMake, Ninja | the Build Tools' own, which Goose finds by itself | CMake 4.3.1 |
 | Vulkan SDK | `C:\VulkanSDK\1.4.363.0`, which also has `spirv-val` | 1.4.363 (1.4.357 or later) |
 | slangc | `..\slang\bin\slangc.exe`, beside this repository | 2026.18.2 or later |
-| Python | `PATH` | 3.14.6, for the scripts |
-| GPU | | RTX 4090, driver 617.42 |
+| Python | `PATH` | 3.14.6 |
 
-`goose toolchain` says which C compiler, CMake, and git the Goose compiler uses. On this
-machine it picks clang-cl from the Build Tools; `--cc msvc` picks cl.
+`goose toolchain` says which C compiler, CMake, and git the Goose compiler uses. On the
+Mac it picks `/usr/bin/cc`, Apple clang. On Windows it picks clang-cl from the Build
+Tools; `--cc msvc` picks cl.
 
 The package's CMake looks for slangc in `NGFX_SLANGC`, in `../slang/bin` beside the
-package, then on `PATH`, and for `spirv-val` in `$VULKAN_SDK/Bin`. The Vulkan SDK puts
-an older slangc on `PATH`, so a fetched copy of the package, which has no `../slang`
-beside it, needs `NGFX_SLANGC`. A shell started before the Vulkan SDK was installed
-lacks `VULKAN_SDK`; set it, or CMake doesn't find Vulkan.
-
-On macOS: macOS 26, Xcode 26 with its Metal toolchain (`xcodebuild -downloadComponent
-MetalToolchain`), and slangc. NoGraphicsAPI's Metal backend needs no Vulkan SDK.
+package, then on `PATH`, and for `spirv-val` in `$VULKAN_SDK/Bin`. A fetched copy of the
+package has no `../slang` beside it, so it needs `NGFX_SLANGC` unless slangc 2026.18.2
+or later is first on `PATH`. On Windows, the Vulkan SDK puts an older slangc on `PATH`,
+and a shell started before the SDK was installed lacks `VULKAN_SDK`; set it, or CMake
+doesn't find Vulkan.
 
 ## Get the source
 
@@ -39,7 +56,15 @@ and SDL; Goose fetches them too when it fetches the package from git.
 
 The Goose compiler isn't a submodule: a package fetched with its submodules would carry a
 copy. Build it from a clone of `aardappel/goose` at the pin, as its README says, and
-point `GOOSE` at it:
+point `GOOSE` at it. On macOS:
+
+```sh
+cmake -S ../goose -B ../goose/build -DCMAKE_BUILD_TYPE=Release
+cmake --build ../goose/build -j
+export GOOSE=$PWD/../goose/build/goose
+```
+
+On Windows:
 
 ```powershell
 cmake -S ..\goose -B ..\goose\build -G "Visual Studio 18 2026"
@@ -55,23 +80,26 @@ root file, from a directory or from git, and imports the modules:
 
 ```goose
 import ngfx from "../";                            // the samples and tests
-import ngfx from "github.com/kaitk/goose-ngfx@v0.1.0";
+import ngfx from "github.com/kaitk/goose-ngfx@v0.1.1";
 import ngfx.ngfx_ui;                               // the ui bridge, if wanted
 ```
 
 The first `goose run` or `goose build` of such a program configures `CMakeLists.txt`
-through a wrapper project of the compiler's, with Ninja, and builds, under
-`~/.goose/build/pkg/`:
+through a wrapper project of the compiler's, with Ninja where the compiler finds it and
+the platform's generator otherwise (Unix Makefiles on a Mac without Ninja), and builds,
+under `~/.goose/build/pkg/`:
 
 1. SDL3, from `third_party/SDL`, static, configured as Goose's gfx package configures
    its own.
 2. NoGraphicsAPI and its utility libraries, from `third_party/NoGraphicsAPI`.
-3. The layer's own two shaders (`native/*.slang`), with slangc and `spirv-val`, into
-   byte arrays.
-4. The `ngfx` static library, from `native/`, and, for `goose run`, a DLL of it the JIT
-   loads.
+3. The layer's own two shaders (`native/*.slang`), into byte arrays: SPIR-V, with
+   slangc and `spirv-val`, or on macOS a metallib, with slangc and Xcode's `metal` and
+   `metallib`.
+4. The `ngfx` static library, from `native/`, and, for `goose run`, a shared library of
+   it the JIT loads.
 
-The first build takes a few minutes. After that, a package from a directory is handed to
+The first build takes a few minutes; fetching and building it from git took 85 s on
+the M1 Pro. After that, a package from a directory is handed to
 CMake on every run, whose build is incremental; one fetched from git is never rebuilt.
 A program that imports `ui` or `audio` also gets Goose's gfx package, fetched from
 `aardappel/goose_gfx` into `~/.goose/pkg/` and built the same way, unless the compiler
@@ -109,11 +137,22 @@ python scripts/api_check.py                     # only the API check
 
 A run that finds no GPU device counts as a skip. Once the native part is built, the whole
 suite takes about a minute on the RTX 4090; most of it is building the samples and
-slangc.
+slangc. On the M1 Pro it took 3.5 minutes, the first build of the native part included.
 
 ## Run the samples
 
 Run them from `samples/`, without `--frames`, to play them in a window:
+
+```sh
+cd samples
+$GOOSE cube.goose
+$GOOSE ui_todo.goose
+$GOOSE mini_minecraft.goose
+$GOOSE mini_doom.goose
+$GOOSE build mini_doom.goose && ./mini_doom --wad data/freedoom1-e1m1.wad
+```
+
+or in PowerShell:
 
 ```powershell
 cd samples
@@ -154,7 +193,7 @@ git -C ../goose log --oneline <pin>..origin/master
 ```
 
 Then rebuild the compiler, run `python scripts/run_tests.py`, and update the pin in
-`README.md`. Things that tend to break:
+`README.md`, in the table and in both quick starts. Things that tend to break:
 
 - The package system: the sidecar's keys, the wrapper project, the import forms
   ([goose-findings.md](goose-findings.md)).
@@ -182,8 +221,13 @@ ref moves, compare both and move SDL in the same commit.
   alone.
 - A path source must start with `./` or `../`: `".."` is taken for a git source.
 - A first build that fails at configure, as it does without a new enough slangc, stays
-  failed: delete the package's directory under `~/.goose/build/pkg/` (`goose-ngfx-*`
-  for a git source, `local/*` for a directory), then run again
+  failed: delete the package's directory under `~/.goose/build/pkg/`
+  (`github.com/kaitk/goose-ngfx/<ref>` for a GitHub source, `local/*` for a directory),
+  then run again
   ([findings](goose-findings.md#a-package-whose-configure-fails-is-never-configured-again)).
 - A fetched copy of the package bakes the slangc and NoGraphicsAPI paths of the machine
   that built it into the layer, as a local build does.
+- To try the package as users get it before pushing, commit, and import it from the
+  local clone by its full commit hash:
+  `import ngfx from "file:///path/to/goose-ngfx@<40-hex hash>";`. Git can't fetch an
+  abbreviated hash.

@@ -81,8 +81,8 @@ program calls them, which costs:
   failing the Goose compile at the line in the program.
 - The machine running the program needs slangc, `spirv-val` if validation is wanted, and
   NoGraphicsAPI's shader headers (`docs/development.md`).
-- Each module takes about 0.2 s to compile on Kait's machine, every run. A cache keyed
-  on the source would remove that if it starts to matter.
+- Each module takes about 0.2 s to compile on the Windows test machine, every run. A
+  cache keyed on the source would remove that if it starts to matter.
 
 ## A main-thread-only layer can't say so to the compiler
 
@@ -146,6 +146,18 @@ isn't enabled at the top:
 
 Workaround: `ngfx` links its dependencies `PRIVATE`, so only their link closure leaves
 the package.
+
+On macOS, the same top level meets Objective-C++. NoGraphicsAPI enables OBJCXX in its
+own directory for its Metal backend, and `ngfx`, a target above it, links that backend.
+CMake wants a language enabled in a directory above every target that compiles or links
+it, so the generate step fails:
+
+    CMake Error: Error required internal CMake variable not set, cmake may not be built correctly.
+    Missing variable is:
+    CMAKE_OBJCXX_COMPILE_OBJECT
+
+Workaround: `CMakeLists.txt` enables OBJCXX in the package's own project on Apple. v0.1.0
+lacked it, and didn't build on a Mac.
 
 ## Two packages can't share a C library
 

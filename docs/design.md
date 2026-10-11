@@ -25,7 +25,7 @@ Goose's gfx programs are ported to it as the acceptance set: `cube`, `ui_todo`,
 ngfx began in a fork of Goose, with the compiler changes a native layer of Goose's own
 gets: a builtin, `embed_slang`, that compiled Slang while Goose compiled the program;
 the layer's symbols in the JIT; `--ngfx-link`; and the main-thread check. It was
-proposed upstream and moved out instead (Kait and Goose's maintainer, 2026-10-10).
+proposed upstream and moved out instead (agreed with Goose's maintainer, 2026-10-10).
 Goose keeps its toolchain light: its gfx compiles GLSL with a small built-in compiler,
 so a Goose executable needs no Vulkan SDK and no external shader compiler, and Goose's
 work is on CPU performance first. ngfx needs slangc and Metal 4 or Vulkan 1.4.
@@ -49,16 +49,24 @@ Built and tested on Windows 11 with Vulkan: an NVIDIA RTX 4090, driver 617.42, V
 check, every test (plainly and under `GOOSE_NGFX_SYNC=full`, run in the compiler and
 built), and every sample (built) pass, headless.
 
-In the fork, the same code also passed on macOS 26 on an Apple M1 Pro (Metal 4). There,
-headless, the cube's, Mini Doom's, and the to-do list's screenshots were byte-identical
-to the gfx originals'. Mini Minecraft's differed in 36 isolated pixels of nearest-sampled
-leaves on Metal, where Slang and Goose's MSL round a texture coordinate differently, and
-in one pixel by one step on Vulkan.
+Built and tested on macOS 26.3 with Metal 4: an Apple M1 Pro, Xcode 26.4 (Apple clang 21),
+slangc 2026.18.3, and Goose `2de6d1d`. The API check, every test (plainly and under
+`GOOSE_NGFX_SYNC=full`, run in the compiler and built), and every sample (built) pass,
+headless. A program outside the repository that imports the package from git runs in
+the compiler and built, and the to-do list and Mini Minecraft, built that way, print
+what they print here. At Goose `4f23f22`, the README's quick start, from fresh clones
+and an empty `~/.goose`, passes the API check, every test, and every sample.
+
+On the Mac, headless, the cube's, Mini Doom's, and the to-do list's screenshots are
+byte-identical to those of Goose's gfx originals. Mini Minecraft's differs in 48
+isolated pixels of nearest-sampled leaves, where Slang and Goose's MSL round a texture
+coordinate differently. In the fork, it differed in 36 such pixels on Metal, and in one
+pixel by one step on Vulkan.
 
 | Platform | State |
 | --- | --- |
 | Windows, Vulkan 1.4 | Tested here on an RTX 4090, headless and windowed. |
-| macOS 26, Metal 4 | Tested in the fork on an M1 Pro; this repository's build is untried there. |
+| macOS 26, Metal 4 | Tested here on an M1 Pro, headless, and windowed in a short run. |
 | Linux, Vulkan 1.4 | Not built. NoGraphicsAPI is headless-only on Linux, and `CMakeLists.txt` stops there. Needs a little work to build headless. |
 
 ## What it costs
@@ -222,8 +230,6 @@ compares with the `extern` declarations in `ngfx.goose`.
 
 ## Open
 
-- Build and test this repository on macOS with Metal 4, which the code passed in the
-  fork.
 - Verify on Vulkan on Linux, headless on AMD, which needs `CMakeLists.txt` to build
   there (see [Status](#status)).
 - Cache compiled Slang modules, keyed on the source, if the 0.2 s per module at startup
