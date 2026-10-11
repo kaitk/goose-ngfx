@@ -238,6 +238,9 @@ git -C ../goose fetch
 git -C ../goose log --oneline <pin>..origin/master
 ```
 
+On the Mac the clone is `../goose-upstream`, and its remote is named `upstream`, so
+the range there is `<pin>..upstream/master`.
+
 Then rebuild the compiler, run `python scripts/run_tests.py`, and update the pin in
 `README.md`, in the table and in both quick starts. Things that tend to break:
 
