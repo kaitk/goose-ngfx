@@ -43,4 +43,4 @@ tasks by number ("task 001"), not by path, so a move breaks no reference.
 
 Task 001 checks the architecture against NoGraphicsAPI's intent and against gfx's cost.
 Its subtasks 01 and 02 need no GPU and can run in either order. Subtask 03 writes the
-benchmark plan from both, and a later task runs it.
+benchmark plan from both, and task 002 runs it.

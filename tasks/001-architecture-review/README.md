@@ -1,6 +1,6 @@
 # 001: Review the architecture
 
-Status: todo
+Status: in-progress
 
 ngfx matches gfx on correctness (screenshots and tests), but it has no performance
 numbers. Nobody has checked the policies ngfx's module owns against what NoGraphicsAPI is
