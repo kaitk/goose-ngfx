@@ -1,6 +1,6 @@
 # 01: Audit ngfx against NoGraphicsAPI's intent
 
-Status: in-progress
+Status: done
 
 NoGraphicsAPI is a thin wrapper: the application owns allocation, lifetime, and
 synchronization, and its utility library is optional. ngfx owns several of those
@@ -238,4 +238,4 @@ cited by section.
 - [x] Each row has a verdict (follows, deviates with a reason that holds, or change), and
       each verdict cites a line of NoGraphicsAPI's docs or a section of the blog post
 - [x] Any intent the sources state that the table misses is added as a row
-- [ ] Each "change" verdict either has a task of its own or updates `docs/design.md`
+- [x] Each "change" verdict either has a task of its own or updates `docs/design.md`
