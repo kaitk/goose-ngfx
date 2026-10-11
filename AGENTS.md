@@ -7,6 +7,7 @@
 - Design decisions: `docs/design.md`
 - Toolchain, build, and tests: `docs/development.md`
 - Goose gaps found here: `docs/goose-findings.md`
+- Task tracking: `tasks/` (see `tasks/README.md`)
 - Writing docs: `.claude/skills/google-style/SKILL.md`
 - The language: Goose's `docs/tutorial.md`, `goose_spec.md`, `stdlib.md`, and
   `packages.md`, in a clone of `aardappel/goose` at the pin (`../goose` on the
