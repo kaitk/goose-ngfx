@@ -216,8 +216,9 @@ void finish()
 using namespace ngfx;
 
 // Set while the C runtime initializes the program, which it does on the
-// thread that then runs main. Goose cannot refuse an ngfx call from a
-// thread_fn itself: the compiler knows only its own layers.
+// thread that then runs main. The compiler already rejects a thread_fn that
+// reaches ngfx (main_thread_only in ngfx.build); this checks again at run time
+// on the calls not made per draw.
 static const std::thread::id main_thread = std::this_thread::get_id();
 
 extern "C" {

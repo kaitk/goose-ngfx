@@ -85,10 +85,13 @@ bool ngfx_need_main_thread(const char *what) {
     return ngfx_misuse("%s: ngfx runs on the main thread only", what);
 }
 
-bool ngfx_need_device(const char *what) {
-    if (!ngfx_need_main_thread(what)) return false;
+bool ngfx_need_open(const char *what) {
     if (ngfx.open) return true;
     return ngfx_misuse("%s: ngfx is not open (call ngfx::open or ngfx::open_headless first)", what);
+}
+
+bool ngfx_need_device(const char *what) {
+    return ngfx_need_main_thread(what) && ngfx_need_open(what);
 }
 
 const char *ngfx_error_text(void) { return ngfx.error; }

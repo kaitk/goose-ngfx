@@ -42,8 +42,8 @@ with `goose file.goose` or builds with `goose build file.goose`
   `barrier(before, after)`. `GOOSE_NGFX_SYNC=full` adds a full barrier around each, to
   check for a missing one.
 - **`generate_mips` is a compute pass** on 2D `SAMPLED | STORAGE` textures, not sRGB.
-- **Main thread only**, as gfx. A call from a `thread_fn` aborts the program at its next
-  check, where gfx's is a compile error.
+- **Main thread only**, as gfx: a `thread_fn` that reaches ngfx is a compile error, from
+  `main_thread_only` in `ngfx.build`.
 
 ## Shaders
 

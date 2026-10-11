@@ -28,6 +28,10 @@ bool ngfx_misuse(const char *fmt, ...);
 /* True inside open() .. close() on the main thread; a misuse to call
    `what` otherwise. */
 bool ngfx_need_device(const char *what);
+/* ngfx_need_device without the thread check, for the calls made per draw:
+   main_thread_only in ngfx.build already makes the compiler reject a
+   thread_fn that reaches them. */
+bool ngfx_need_open(const char *what);
 /* False, after counting a misuse, off the main thread. */
 bool ngfx_need_main_thread(const char *what);
 /* The text of the last failure, for keeping across a close(). */

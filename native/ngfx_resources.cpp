@@ -357,7 +357,7 @@ void ngfx_release_buffer(ngfx_buffer b)
 
 uint64_t ngfx_frame_data(ngfx_bytes data)
 {
-    if (!ngfx_need_device("frame_data")) return 0;
+    if (!ngfx_need_open("frame_data")) return 0;
     if (data.len <= 0)
     {
         ngfx_misuse("frame_data: no bytes");

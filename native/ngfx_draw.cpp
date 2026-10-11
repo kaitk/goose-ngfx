@@ -76,22 +76,21 @@ PSO* pipeline_for(PipelineSlot* p, const Targets& t)
 }
 
 // Binds the pipeline for this pass's targets, and the depth state that goes
-// with it (begin_render_pass resets it).
+// with it (begin_render_pass resets it), at the first draw after a bind or
+// begin_pass, both of which clear bound_pso.
 bool bind_for_draw(const char* what)
 {
     if (!g.in_pass) return ngfx_misuse("%s outside a pass: begin_pass first", what);
     if (!g.pipeline) return ngfx_misuse("%s with no pipeline bound", what);
+    if (g.bound_pso) return true;
     PipelineSlot* p = g.pipelines.get(g.pipeline);
     if (!p) return false;
     PSO* pso = pipeline_for(p, g.pass_targets);
     if (!pso) return ngfx_misuse("%s: the pipeline cannot draw into this pass's targets: %s", what, ngfx_error_text());
-    if (pso != g.bound_pso)
-    {
-        bind_pso(g.commands, pso);
-        g.bound_pso = pso;
-        set_depth_stencil(g.commands, {.depth_test = p->desc.depth_test != 0, .depth_write = p->desc.depth_write != 0,
-                                       .depth_compare = compare_op(p->desc.depth_compare)});
-    }
+    bind_pso(g.commands, pso);
+    g.bound_pso = pso;
+    set_depth_stencil(g.commands, {.depth_test = p->desc.depth_test != 0, .depth_write = p->desc.depth_write != 0,
+                                   .depth_compare = compare_op(p->desc.depth_compare)});
     return true;
 }
 
@@ -477,7 +476,7 @@ void ngfx_scissor(int64_t x, int64_t y, int64_t w, int64_t h)
 
 void ngfx_draw(uint64_t root, int64_t vertices, int64_t instances, int64_t first_vertex, int64_t first_instance)
 {
-    if (!ngfx_need_device("draw") || !bind_for_draw("draw")) return;
+    if (!ngfx_need_open("draw") || !bind_for_draw("draw")) return;
     if (root % 16) ngfx_misuse("draw: a root at %#llx is not 16-byte aligned", (unsigned long long)root);
     if (vertices <= 0 || instances <= 0) return;
     draw(g.commands, reinterpret_cast<const void*>(uintptr_t(root)), uint32(vertices), uint32(instances),
@@ -487,7 +486,7 @@ void ngfx_draw(uint64_t root, int64_t vertices, int64_t instances, int64_t first
 void ngfx_draw_indexed(uint64_t root, ngfx_buffer indices, int64_t index_size, int64_t count, int64_t instances,
                           int64_t first_index, int64_t vertex_offset, int64_t first_instance)
 {
-    if (!ngfx_need_device("draw_indexed") || !bind_for_draw("draw_indexed")) return;
+    if (!ngfx_need_open("draw_indexed") || !bind_for_draw("draw_indexed")) return;
     if (root % 16) ngfx_misuse("draw_indexed: a root at %#llx is not 16-byte aligned", (unsigned long long)root);
     BufferSlot* b = g.buffers.get(indices.id);
     if (!b) return;
