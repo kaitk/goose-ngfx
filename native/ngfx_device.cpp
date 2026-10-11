@@ -138,6 +138,7 @@ void flush_uploads()
 {
     g.uploads->flush();
     g.uploaded.clear();
+    g.uploaded_textures.clear();
 }
 
 void upload(GpuRange destination, const void* data, uint64 size)
@@ -154,6 +155,25 @@ void upload(GpuRange destination, const void* data, uint64 size)
     }
     g.uploads->upload_buffer({.gpu = destination.gpu, .size = size}, ByteSpan(data, size_t(size)));
     g.uploaded.push_back({.gpu = destination.gpu, .size = size});
+}
+
+void upload_texture(TextureSlot* s, const TextureCopyDesc& region, const void* data, uint64 size)
+{
+    auto overlap = [](uint32 a, uint32 a_size, uint32 b, uint32 b_size) { return a < b + b_size && b < a + a_size; };
+    for (const TextureUpload& u : g.uploaded_textures)
+    {
+        const TextureCopyDesc& o = u.region;
+        if (u.texture == s->placed.texture && o.mip_level == region.mip_level && o.base_slice == region.base_slice &&
+            overlap(o.offset.x, o.extent.x, region.offset.x, region.extent.x) &&
+            overlap(o.offset.y, o.extent.y, region.offset.y, region.extent.y) &&
+            overlap(o.offset.z, o.extent.z, region.offset.z, region.extent.z))
+        {
+            flush_uploads();
+            break;
+        }
+    }
+    gpu::upload_texture(*g.uploads, s->placed.texture, s->desc, ByteSpan(data, size_t(size)), region);
+    g.uploaded_textures.push_back({.texture = s->placed.texture, .region = region});
 }
 
 void submit_frame_commands(bool present)
@@ -244,7 +264,7 @@ bool ngfx_gpu_open(void* layer, int w, int h)
                                .gpu = g.frame_heap.range.gpu + i * frame_memory_size, .size = frame_memory_size};
         g.frame_data[i] = new BumpAllocator(part);
     }
-    g.uploads = new UploadQueue(g.device, upload_capacity, 0, frames_in_flight);
+    g.uploads = new UploadQueue(g.device, upload_capacity, 0, upload_batches);
     if (!g.uploads->valid()) return ngfx_fail("creating the upload queue");
     g.deletes = new DeleteQueue(g.timeline.semaphore, delete_capacity);
     g.texture_allocator = new TextureAllocator(g.device, g.texture_heap, max_textures);

@@ -177,9 +177,11 @@ compares with the `extern` declarations in `ngfx.goose`.
   compute, and on M1 NoGraphicsAPI leaves open whether its queues are independent
   engines, so no gain could be measured. Adding it later extends the surface without
   changing it.
-- **`update_buffer` takes effect for the whole frame** it is called in. Uploads go through
-  `UploadQueue`, flushed before each submission of the frame's commands. Data that changes
-  between draws goes in `frame_data`.
+- **`update_buffer` takes effect for the whole frame** it is called in, as `update_texture`
+  does. Uploads go through `UploadQueue`, flushed before each submission of the frame's
+  commands, and earlier only when an upload overlaps one already in the batch. Up to
+  eight batches can be pending, so a frame's flushes don't wait for an earlier frame.
+  Data that changes between draws goes in `frame_data`.
 - **Texture initialization is submitted at once**, in its own command buffer, as
   NoGraphicsAPI's cube example does, so no upload can overtake it.
 - **Every color texture can be updated and read back** (`transfer_source |

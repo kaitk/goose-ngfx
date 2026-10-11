@@ -158,6 +158,13 @@ struct SamplerSlot
     uint32 index = 0;
 };
 
+// One region of a texture written by an upload: a mip of one slice.
+struct TextureUpload
+{
+    Texture* texture = nullptr;
+    TextureCopyDesc region{};
+};
+
 // A pass's targets, which a pipeline is created for.
 struct Targets
 {
@@ -205,6 +212,10 @@ constexpr uint32 max_textures = 4096;
 constexpr uint32 texture_descriptors = 8192;
 constexpr uint32 sampler_descriptors = 1024;
 constexpr uint64 upload_capacity = 32ull << 20;
+// UploadQueue's batches in flight. A frame flushes one at its end and one
+// for each upload that overlaps an earlier one in the batch; past this many,
+// starting another waits on the CPU for the oldest.
+constexpr uint32 upload_batches = frames_in_flight * 4;
 constexpr uint32 delete_capacity = 1u << 16;
 
 // Indices into a descriptor heap: the lowest free one first.
@@ -245,7 +256,9 @@ struct State
     CommandBuffer* commands = nullptr;
 
     UploadQueue* uploads = nullptr;
-    std::vector<GpuRange> uploaded; // destinations in the upload batch being built
+    // Destinations in the upload batch being built.
+    std::vector<GpuRange> uploaded;
+    std::vector<TextureUpload> uploaded_textures;
     DeleteQueue* deletes = nullptr;
     // Releases since the last submission of the frame's commands, which wait
     // for that submission.
@@ -314,6 +327,9 @@ void defer_release(void (*fn)(void*), void* arg);
 // earlier upload in it overlaps (upload_queue.hpp: flush between overlapping
 // transfer writes).
 void upload(GpuRange destination, const void* data, uint64 size);
+// Uploads to one region of `s`, as upload does to a buffer: a mip of one
+// slice, its extent explicit.
+void upload_texture(TextureSlot* s, const TextureCopyDesc& region, const void* data, uint64 size);
 void flush_uploads();
 
 bool texture_format(int32 goose, Format* out);

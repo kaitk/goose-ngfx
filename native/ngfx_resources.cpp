@@ -411,10 +411,7 @@ uint8_t ngfx_update_texture(ngfx_texture t, const ngfx_region* region, ngfx_byte
     TextureCopyDesc c;
     if (!region_of(s, region, &c, "update_texture") || !region_bytes(s, c, data.len, "update_texture")) return 0;
     if (is_depth(s->desc.format)) return ngfx_misuse("update_texture: a depth texture");
-    // The texture-region helper splits what does not fit the staging memory.
-    flush_uploads();
-    gpu::upload_texture(*g.uploads, s->placed.texture, s->desc, ByteSpan(data.data, size_t(data.len)), c);
-    flush_uploads();
+    upload_texture(s, c, data.data, uint64(data.len));
     return 1;
 }
 
