@@ -1,7 +1,7 @@
-/* The ngfx layer's C API: every function lib/ngfx.goose reaches through an
+/* The ngfx layer's C API: every function ngfx.goose reaches through an
    `extern "ngfx_..." fn`, listed once in NGFX_API. That list expands
    into the prototypes below, and scripts/api_check.py checks
-   lib/ngfx.goose against it.
+   ngfx.goose against it.
 
    ngfx is gfx's platform half (window, input, time, the screen, textures and
    read-back) over NoGraphicsAPI, with NoGraphicsAPI's way of drawing: a draw
@@ -11,7 +11,7 @@
 
    The conventions are gfx's (src/gfx/gfx_api.h): what crosses is what
    `extern fn` can pass; structs are packed and declared again in
-   lib/ngfx.goose with the same fields; handles are one u32 with a
+   ngfx.goose with the same fields; handles are one u32 with a
    generation, 0 never valid; failures outside the program return false or a
    zero handle with the reason in ngfx_error, and misuse is counted for
    the Goose side to abort on. */
@@ -192,7 +192,7 @@ typedef struct {
 NGFX_API(NGFX_PROTO)
 #undef NGFX_PROTO
 
-/* The constants lib/ngfx.goose declares, with their Goose types; here they
+/* The constants ngfx.goose declares, with their Goose types; here they
    are NGFX_<name>. The ones gfx also has keep gfx's values. */
 #define NGFX_CONSTANTS(X) \
     /* open() and open_headless() flags. */ \

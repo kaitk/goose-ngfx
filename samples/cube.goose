@@ -11,14 +11,15 @@
 // `-- --frames N` stops after N frames. Either way the last frame is saved
 // as ngfx_cube.png.
 //
-// CMake builds it (docs/development.md); from samples/:
-//   ../build/bin/cube
+// From samples/ (docs/development.md), run in the compiler or built:
+//   goose cube.goose
+//   goose build cube.goose && ./cube
 
 import std;
 import vec;
 import math;
 import os;
-import ngfx;
+import ngfx from "../";
 
 // One corner of one face: where it is, which way the face points, and the
 // face's color as four bytes, which the shader unpacks to a float4 from 0

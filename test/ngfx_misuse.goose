@@ -4,7 +4,7 @@
 import std;
 import vec;
 import os;
-import ngfx;
+import ngfx from "../";
 
 fn main() {
     guard ngfx::open_headless(16, 16) else {

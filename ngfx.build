@@ -1,0 +1,6 @@
+// The ngfx package's native part: SDL3, NoGraphicsAPI and the layer in
+// native/, one CMake project (CMakeLists.txt beside this file) whose target
+// ngfx carries all three. Like Goose's gfx, its functions run on the main
+// thread only.
+cmake_target = "ngfx";
+main_thread_only = true;

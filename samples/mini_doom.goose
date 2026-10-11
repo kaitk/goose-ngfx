@@ -9,9 +9,11 @@
 // font and sound effects. This is an independent, deliberately small game;
 // it is not a source port and does not reproduce Doom's simulation exactly.
 //
-// CMake builds it (docs/development.md); from samples/, with Goose's WAD:
-//   ../build/bin/mini_doom --wad ../third_party/goose/samples/data/freedoom1-e1m1.wad
-//   ../build/bin/mini_doom --frames 30 --wad ...
+// From samples/ (docs/development.md), run in the compiler or built. The
+// WAD is data/freedoom1-e1m1.wad under resource_dir(): beside the source
+// in the compiler, beside the executable once built, or --wad's:
+//   goose mini_doom.goose
+//   goose build mini_doom.goose && ./mini_doom --wad data/freedoom1-e1m1.wad
 //
 // WASD walks, Shift runs, mouse or Left/Right turns, E or Space uses doors
 // and switches. Left mouse or Ctrl fires. 1 selects fists, 2 the pistol,
@@ -37,7 +39,7 @@ import math;
 import vec;
 import os;
 import binary;
-import ngfx;
+import ngfx from "../";
 import audio;
 
 // --- the WAD directory and little-endian values ------------------------------

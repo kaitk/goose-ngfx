@@ -2,3 +2,10 @@
 samples/*.png
 samples/*.sav
 __pycache__/
+# What goose build leaves beside a source.
+samples/*.exe
+test/*.exe
+/samples/cube
+/samples/ui_todo
+/samples/mini_minecraft
+/samples/mini_doom

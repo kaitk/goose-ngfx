@@ -1,6 +1,6 @@
 // A Slang module that does not compile aborts the program at the slang()
 // call, reported at the offending line of the module.
-import ngfx;
+import ngfx from "../";
 
 fn main() {
     let shader = ngfx::slang("""

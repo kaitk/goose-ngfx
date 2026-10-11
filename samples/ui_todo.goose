@@ -17,16 +17,21 @@
 // closing the window quits. `-- --frames N` stops after N frames. Either
 // way the last frame is saved as ngfx_ui_todo.png.
 //
-// CMake builds it (docs/development.md); from samples/:
-//   ../build/bin/ui_todo
+// From samples/ (docs/development.md), run in the compiler or built:
+//   goose ui_todo.goose
+//   goose build ui_todo.goose && ./ui_todo
 
 import std;
 import vec;
 import math;
 import os;
-import ngfx;
+import ngfx from "../";
 import ui;
-import ngfx_ui;
+import ngfx.ngfx_ui;
+
+// Roboto (Apache 2.0, one of Nuklear's extra fonts), read into the program
+// when it is compiled: no file to ship beside the executable.
+let ROBOTO: const u8[:] = embed_file("data/Roboto-Regular.ttf");
 
 struct Task { text: u8[..40], done: bool }
 
@@ -51,16 +56,10 @@ fn main() {
         write_stderr(str("gfx: ", ngfx::error(), "\n"));
         return;
     }
-    // A context holds the ui's state; this one draws with Roboto, from the
-    // Nuklear submodule of Goose's, 16 pixels high at a scale of 1 and baked
-    // again whenever the scale changes. The samples run from samples/; the
-    // second path is for running this one from the repository's top.
-    let fonts: const u8[:][2] = ["../third_party/goose/third_party/nuklear/extra_font/Roboto-Regular.ttf",
-                                 "third_party/goose/third_party/nuklear/extra_font/Roboto-Regular.ttf"];
-    var ctx = ui::Context { 0 };
-    for path in fonts {
-        if ctx.id == 0 { ctx = ui::create_from_file(path, 16.0); }
-    }
+    // A context holds the ui's state; this one draws with the embedded
+    // Roboto, 16 pixels high at a scale of 1 and baked again whenever the
+    // scale changes.
+    var ctx = ui::create_from_memory(ROBOTO, 16.0);
     guard ctx.id != 0 else {
         write_stderr(str("ui: ", ui::error(), "\n"));
         return;

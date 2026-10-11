@@ -3,7 +3,7 @@
 // to one blob, with every entry point's name, stage and thread group size.
 // Nothing here needs a GPU, only the shader tools.
 import std;
-import ngfx;
+import ngfx from "../";
 
 // Slang as a global, which ngfx::slang calls can name.
 let doubled_slang = """

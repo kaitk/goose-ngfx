@@ -10,11 +10,11 @@
 // build a cabin and light it. This is a programming sample, not an engine:
 // a finite grid, a few plain structs, and one update/draw loop.
 //
-// CMake builds it (docs/development.md); from samples/:
-//   ../build/bin/mini_minecraft
-//   ../build/bin/mini_minecraft --seed 123
-//   ../build/bin/mini_minecraft --frames 120
-//   ../build/bin/mini_minecraft --test
+// From samples/ (docs/development.md), run in the compiler or built:
+//   goose mini_minecraft.goose
+//   goose mini_minecraft.goose -- --seed 123
+//   goose build mini_minecraft.goose && ./mini_minecraft --frames 120
+//   ./mini_minecraft --test
 //
 // WASD walk; Space jump/swim up; Shift run; mouse or arrows look.
 // Ctrl sneaks slowly and stops at ledges; jumping releases that protection.
@@ -43,7 +43,7 @@ import std;
 import vec;
 import math;
 import os;
-import ngfx;
+import ngfx from "../";
 
 // --- blocks and game state ----------------------------------------------------
 

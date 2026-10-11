@@ -2,7 +2,7 @@
 // final event, edges record every transition, and queries do not consume them.
 import std;
 import os;
-import ngfx;
+import ngfx from "../";
 
 fn inject(down: bool) {
     ngfx::inject_key("C", down);

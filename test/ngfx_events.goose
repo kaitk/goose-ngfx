@@ -8,7 +8,7 @@
 import std;
 import vec;
 import os;
-import ngfx;
+import ngfx from "../";
 
 fn open_or_skip() -> bool {
     if ngfx::open_headless(32, 24) { return true; }

@@ -1,7 +1,7 @@
 # The design of ngfx
 
 What `ngfx` is, what it costs, and why it is shaped as it is. [api.md](api.md) is the API
-overview, and the header of `lib/ngfx.goose` the reference.
+overview, and the header of `ngfx.goose` the reference.
 
 ## What it is
 
@@ -30,22 +30,24 @@ Goose keeps its toolchain light: its gfx compiles GLSL with a small built-in com
 so a Goose executable needs no Vulkan SDK and no external shader compiler, and Goose's
 work is on CPU performance first. ngfx needs slangc and Metal 4 or Vulkan 1.4.
 
-So this repository uses Goose as it ships, and each compiler change has a workaround
-here, recorded in [goose-findings.md](goose-findings.md):
+So this repository uses Goose as it ships, as a package (`ngfx.goose`, `ngfx.build`, and
+a CMake project for the native part), and each compiler change has a counterpart here,
+recorded in [goose-findings.md](goose-findings.md):
 
 | In the fork | Here |
 |---|---|
 | `embed_slang` compiled Slang into the program | `ngfx::slang` compiles it when the program runs |
-| `goose file.goose` ran ngfx programs with TinyCC | Programs are built through C, by CMake |
-| The compiler rejected ngfx calls from a `thread_fn` | The layer counts them as misuse, which aborts |
-| `--ngfx-link` printed the link inputs | CMake links the layer into each program |
+| `goose file.goose` ran ngfx programs with TinyCC | The same, through the package's JIT library |
+| The compiler rejected ngfx calls from a `thread_fn` | The same, from `main_thread_only` in `ngfx.build` |
+| `--ngfx-link` printed the link inputs | `goose build` links the package's native part |
 | C names `gs_ngfx_*` | `ngfx_*`: `gs_` is Goose's |
 
 ## Status
 
 Built and tested on Windows 11 with Vulkan: an NVIDIA RTX 4090, driver 617.42, Vulkan SDK
-1.4.363, slangc 2026.18.2, MSVC 19.51, and Goose `bab8b6f`. The API check, every test
-(plainly and under `GOOSE_NGFX_SYNC=full`), and every sample pass, headless.
+1.4.363, slangc 2026.18.2, clang-cl 22.1.3, and Goose `2de6d1d`. The API check, every
+test (plainly and under `GOOSE_NGFX_SYNC=full`, run in the compiler), and every sample
+(built) pass, headless.
 
 In the fork, the same code also passed on macOS 26 on an Apple M1 Pro (Metal 4). There,
 headless, the cube's, Mini Doom's, and the to-do list's screenshots were byte-identical
@@ -80,27 +82,31 @@ These choices follow NoGraphicsAPI rather than the rest of Goose. Each is delibe
   which is what keeps its uploads synchronized exactly as NoGraphicsAPI's are. A program
   links the C++ runtime.
 - **A high hardware bar**: macOS 26 and Metal 4, or Vulkan 1.4.357 with descriptor heaps,
-  64-bit only, and CMake 3.24.
+  64-bit only, and CMake 3.25.
 - **Duplication with gfx and ui.** The platform half of `native/ngfx_platform.c` is a
-  copy of Goose's `src/gfx/gfx_device.c` with `ngfx_` names, and `lib/ngfx_ui.goose`
-  repeats ui's 90-line input bridge. Sharing either would change Goose.
+  copy of gfx's `src/gfx/gfx_device.c` with `ngfx_` names, and `ngfx_ui.goose` repeats
+  ui's 90-line input bridge. Sharing either would change Goose's gfx package.
 
 ## How it is built
 
 The layer follows the conventions of Goose's native layers (its `docs/design/physics.md`):
 packed C structs, `let` constants, `ngfx_` names, and one X-macro list (`NGFX_API` in
 `native/ngfx_api.h`) that expands into the prototypes and that `scripts/api_check.py`
-compares with the `extern` declarations in `lib/ngfx.goose`.
+compares with the `extern` declarations in `ngfx.goose`.
 
-- `native/ngfx_platform.c`: window, input, and time over SDL3, from gfx. It uses the SDL3
-  Goose builds, so a program that also uses Goose's audio or ui has one SDL.
+- `native/ngfx_platform.c`: window, input, and time over SDL3, from gfx. The package
+  builds its own SDL3, at the commit and with the options of Goose's gfx package, since
+  two packages can't share C. A program that also imports `audio` or `ui` links two
+  identical SDL archives, and the linker takes one; a `goose run` loads one per package
+  ([findings](goose-findings.md#two-packages-cant-share-a-c-library)).
 - `native/ngfx_device.cpp`, `ngfx_resources.cpp`, `ngfx_draw.cpp`, `ngfx_gpu.hpp`: the GPU
   half over NoGraphicsAPI and NoGraphicsAPIUtility.
 - `native/ngfx_slang.cpp`: `ngfx::slang`.
 - `native/ngfx_screen.slang`, `ngfx_mips.slang`: the layer's own shaders, compiled when
   the layer is built and embedded as byte arrays (`cmake/bin2h.cmake`).
-- `CMakeLists.txt` builds Goose as a subproject, then NoGraphicsAPI, the layer, and every
-  program ([development.md](development.md#build)).
+- `CMakeLists.txt` builds SDL, NoGraphicsAPI, the shaders, and the layer, as the target
+  `ngfx` that `ngfx.build` names; the Goose compiler builds it when a program imports
+  ngfx ([development.md](development.md#how-a-program-is-built)).
 
 ### `ngfx::slang`
 
@@ -187,7 +193,7 @@ compares with the `extern` declarations in `lib/ngfx.goose`.
   whose output changes under it is missing a barrier. `scripts/run_tests.py` runs every
   test both ways. No validation layer would catch a missing barrier
   through device addresses, so this check is the safety net.
-- **`generate_mips` is Goose code in `lib/ngfx.goose`**: a compute dispatch per level,
+- **`generate_mips` is Goose code in `ngfx.goose`**: a compute dispatch per level,
   reading the level above through the sampled view and writing through a per-level
   storage view (`storage_index(t, mip)`), with a barrier between levels. NoGraphicsAPI
   has no mip generation and leaves it to applications. It supports 2D textures with
@@ -199,7 +205,7 @@ compares with the `extern` declarations in `lib/ngfx.goose`.
 - **Data rebuilt every frame moves to `frame_data`**; data that persists stays in buffers.
 - **One root per Slang module** (`GPU_ROOT` binds slot 0), so a program whose pipelines
   take different roots compiles one module per root, sharing Slang through a `let` global.
-- **ui draws through ngfx in a companion module, `lib/ngfx_ui.goose`**, not in Goose's
+- **ui draws through ngfx in a companion module, `ngfx_ui.goose`**, not in Goose's
   `ui`, which stays unchanged. ui's atlas texture ids are one namespace shared by both
   renderers, which is safe only because a program uses one.
 

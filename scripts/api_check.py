@@ -1,4 +1,4 @@
-"""Checks that lib/ngfx.goose and native/ngfx_api.h describe the same
+"""Checks that ngfx.goose and native/ngfx_api.h describe the same
 boundary: every `extern "ngfx_..." fn` against the header's list of
 functions (NGFX_API), parameter by parameter; every struct that crosses,
 field by field; and every constant. A mismatch there compiles on both sides
@@ -23,7 +23,7 @@ PRIMS = {"bool": "uint8_t", "i8": "int8_t", "i16": "int16_t", "i32": "int32_t",
 VECS = ("int2", "int3", "float2", "float3", "float4")
 
 HEADER = "native/ngfx_api.h"
-GOOSE = "lib/ngfx.goose"
+GOOSE = "ngfx.goose"
 PREFIX = "ngfx_"
 
 

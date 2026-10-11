@@ -3,14 +3,15 @@
 ## Project context
 
 - What this is and its pins: `README.md`
-- The API: `docs/api.md`, and the header of `lib/ngfx.goose`
+- The API: `docs/api.md`, and the header of `ngfx.goose`
 - Design decisions: `docs/design.md`
 - Toolchain, build, and tests: `docs/development.md`
 - Goose gaps found here: `docs/goose-findings.md`
 - Writing docs: `.claude/skills/google-style/SKILL.md`
-- The language: `third_party/goose/docs/tutorial.md`, `goose_spec.md`, and `stdlib.md`.
-  Read the tutorial before writing Goose; check the spec before assuming a feature
-  exists.
+- The language: Goose's `docs/tutorial.md`, `goose_spec.md`, `stdlib.md`, and
+  `packages.md`, in a clone of `aardappel/goose` at the pin (`../goose` on Kait's
+  machine). Read the tutorial before writing Goose; check the spec before assuming a
+  feature exists. gfx, audio, and ui are in `aardappel/goose_gfx`.
 
 Follow the recorded decisions; if a change contradicts one, update the doc in the same
 change or ask first. Record setup facts and environment traps you find in
@@ -18,18 +19,19 @@ change or ask first. Record setup facts and environment traps you find in
 
 ## A library for Goose, not a change to Goose
 
-- Goose changes daily. Fetch `third_party/goose` at the start of a session and move the
-  pin when it lags (`docs/development.md`, "Move the Goose pin").
-- Don't edit `third_party/goose`. When Goose rejects something it should accept,
+- Goose changes daily. Fetch it at the start of a session and move the pin when it lags
+  (`docs/development.md`, "Move the pins"). SDL moves only with `goose_gfx`'s.
+- Don't edit Goose. When Goose rejects something it should accept,
   miscompiles, or lacks a hook this library needs, reduce it to a minimal case, record
   it in `docs/goose-findings.md`, and work around it here. Tell Kait about blockers.
-- Write Goose the way Goose's own `samples/` and `stdlib/` do.
-- `lib/ngfx.goose` and `native/ngfx_api.h` describe one boundary. Change both together,
+- Write Goose the way Goose's own `samples/` and `stdlib/` do, and a package the way
+  `goose_gfx` is one.
+- `ngfx.goose` and `native/ngfx_api.h` describe one boundary. Change both together,
   and run `python scripts/api_check.py`.
 
 ## Tests
 
-- `python scripts/run_tests.py` after `cmake --build build --config Release`. Every test
+- `python scripts/run_tests.py`, with `GOOSE` set to a compiler at the pin. Every test
   must pass both plainly and under `GOOSE_NGFX_SYNC=full`.
 - A sample's or test's expected output changes only with a reason in the commit.
 

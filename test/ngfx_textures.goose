@@ -6,7 +6,7 @@
 import std;
 import vec;
 import os;
-import ngfx;
+import ngfx from "../";
 
 // The roots of the shaders below: a texture and a sampler by index, and the
 // mip level or the depth coordinate to sample at.

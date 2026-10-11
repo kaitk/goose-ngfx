@@ -6,11 +6,11 @@ samplers, read-back, and `screenshot` by name and behavior, and draws the way
 NoGraphicsAPI does: no bindings, no vertex formats, and no resource states. Everything
 is in namespace `ngfx`.
 
-The header of `lib/ngfx.goose` is the reference, `samples/cube.goose` a small complete
+The header of `ngfx.goose` is the reference, `samples/cube.goose` a small complete
 program, and [design.md](design.md) how it works and what it costs.
 
 ```goose
-import ngfx;
+import ngfx from "github.com/kaitk/goose-ngfx@main";
 
 struct Root { vertices: u64, transform: ngfx::float4x4 }
 
@@ -21,8 +21,9 @@ let root = ngfx::root(Root { vertices: ngfx::address(vertices), transform: m });
 ngfx::draw(root, 36);                              // the shader fetches its own vertices
 ```
 
-A program that imports `ngfx` is built through C with this repository's CMake, not run
-with `goose file.goose` ([development.md](development.md#build)).
+A program declares the package in its root file, as above or from a directory, and runs
+with `goose file.goose` or builds with `goose build file.goose`
+([development.md](development.md#how-a-program-is-built)).
 
 ## How it differs from gfx
 
@@ -75,7 +76,8 @@ let c = ngfx::slang_file("shaders/world.slang");
 
 ## ngfx_ui
 
-`ngfx_ui` draws Goose's [`ui`](../third_party/goose/docs/stdlib.md#ui) through ngfx:
+`import ngfx.ngfx_ui;` draws Goose's
+[`ui`](https://github.com/aardappel/goose_gfx/blob/v1/docs/ui.md) through ngfx:
 `ngfx_ui::input(c)` after `ngfx::frame()`, and `ngfx_ui::render(c)` or
 `ngfx_ui::render(c, target)`, as `ui`'s gfx functions do. `samples/ui_todo.goose` uses
 it.

@@ -1,52 +1,64 @@
-# goose-ngfx: graphics for Goose programs on NoGraphicsAPI, beside an
-# unmodified Goose (docs/development.md).
-#
-# Builds the Goose compiler and its gfx, audio and ui layers from the
-# third_party/goose submodule, NoGraphicsAPI from third_party/NoGraphicsAPI,
-# the native layer that lib/ngfx.goose declares its extern fns against
-# (native/), and every sample and test: each Goose program is compiled to C
-# by that compiler, then linked with the layer and with Goose's own layers,
-# whose SDL3 the ngfx layer shares, so a program has one copy of SDL.
+# The ngfx package's native part (ngfx.build): SDL3 from third_party/SDL,
+# NoGraphicsAPI from third_party/NoGraphicsAPI, and the layer that
+# ngfx.goose declares its extern fns against (native/), linked as the target
+# ngfx. The Goose compiler builds it through a wrapper project of its own
+# when a program imports ngfx (docs/development.md).
 
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.25)
 project(goose_ngfx C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-# The C runtime Goose's archives use (its CMakeLists.txt).
+# The C runtime of Goose's runtime object and packages.
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
 
-# --- Goose ----------------------------------------------------------------------
-set(GOOSE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/goose")
-foreach(dep IN ITEMS SDL nuklear)
-    if(NOT EXISTS "${GOOSE_DIR}/third_party/${dep}/CMakeLists.txt" AND
-       NOT EXISTS "${GOOSE_DIR}/third_party/${dep}/nuklear.h")
-        message(FATAL_ERROR "No ${GOOSE_DIR}/third_party/${dep}: run "
-                            "git submodule update --init --recursive (docs/development.md)")
-    endif()
-endforeach()
-# Programs need no in-process backend or physics; the rest is what they link.
-set(GOOSE_LIBTCC OFF CACHE BOOL "" FORCE)
-set(GOOSE_PHYSICS OFF CACHE BOOL "" FORCE)
-foreach(module IN ITEMS GFX AUDIO UI)
-    set(GOOSE_${module} ON CACHE BOOL "" FORCE)
-endforeach()
-add_subdirectory("${GOOSE_DIR}" "${CMAKE_BINARY_DIR}/goose")
-foreach(target IN ITEMS goose_gfx goose_audio goose_ui SDL3::SDL3-static)
-    if(NOT TARGET ${target})
-        message(FATAL_ERROR "Goose built without ${target}")
-    endif()
-endforeach()
+# --- SDL ----------------------------------------------------------------------
+# Static, and configured as Goose's gfx package configures it
+# (github.com/aardappel/goose_gfx, CMakeLists.txt) at the same commit: a
+# program that imports ngfx and audio or ui links both packages' SDL, and the
+# linker takes each object from whichever comes first, so the two must be
+# the same build.
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/SDL/CMakeLists.txt")
+    message(FATAL_ERROR "No third_party/SDL: git submodule update --init")
+endif()
+set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+set(SDL_STATIC ON CACHE BOOL "" FORCE)
+set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
+set(SDL_CAMERA OFF CACHE BOOL "" FORCE)
+set(SDL_RENDER OFF CACHE BOOL "" FORCE)
+set(SDL_OPENGL OFF CACHE BOOL "" FORCE)
+set(SDL_OPENGLES OFF CACHE BOOL "" FORCE)
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/third_party/SDL" "${CMAKE_CURRENT_BINARY_DIR}/SDL" EXCLUDE_FROM_ALL)
 
 # --- the shader tools --------------------------------------------------------------
 # For the layer's own shaders now, and as the defaults ngfx::slang runs
-# later (native/ngfx_slang.cpp), which the environment overrides.
+# later (native/ngfx_slang.cpp). The Goose compiler configures this project
+# with no options of the user's, so the environment's NGFX_SLANGC, which
+# ngfx::slang reads too, is the way to name another slangc. The Vulkan SDK
+# puts an older slangc on PATH, which the search passes over.
+set(NGFX_SLANGC_MIN 2026.18.2)
+function(ngfx_slangc_ok result candidate)
+    execute_process(COMMAND "${candidate}" -version OUTPUT_VARIABLE out ERROR_VARIABLE out
+                    RESULT_VARIABLE code)
+    string(REGEX MATCH "[0-9]+[.][0-9]+([.][0-9]+)?" version "${out}")
+    if(NOT code EQUAL 0 OR NOT version OR version VERSION_LESS NGFX_SLANGC_MIN)
+        set(${result} FALSE PARENT_SCOPE)
+    endif()
+endfunction()
+if(DEFINED ENV{NGFX_SLANGC} AND NOT NGFX_SLANGC)
+    set(NGFX_SLANGC "$ENV{NGFX_SLANGC}" CACHE FILEPATH "slangc ${NGFX_SLANGC_MIN} or later")
+endif()
 find_program(NGFX_SLANGC NAMES slangc HINTS "${CMAKE_CURRENT_SOURCE_DIR}/../slang/bin"
-             DOC "slangc 2026.18.2 or later")
+             VALIDATOR ngfx_slangc_ok DOC "slangc ${NGFX_SLANGC_MIN} or later")
 find_program(NGFX_SPIRV_VAL NAMES spirv-val HINTS "$ENV{VULKAN_SDK}/Bin" "$ENV{VULKAN_SDK}/bin"
              DOC "spirv-val, to validate the SPIR-V ngfx::slang makes")
-if(NOT NGFX_SLANGC)
-    message(FATAL_ERROR "No slangc: set NGFX_SLANGC (docs/development.md)")
+set(slangc_ok TRUE)
+if(NGFX_SLANGC)
+    ngfx_slangc_ok(slangc_ok "${NGFX_SLANGC}")
+endif()
+if(NOT NGFX_SLANGC OR NOT slangc_ok)
+    message(FATAL_ERROR "No slangc ${NGFX_SLANGC_MIN} or later (${NGFX_SLANGC}): set NGFX_SLANGC "
+                        "to one, or put it on PATH ahead of the Vulkan SDK's (docs/development.md)")
 endif()
 
 # --- NoGraphicsAPI ------------------------------------------------------------------
@@ -75,9 +87,9 @@ else()
         message(FATAL_ERROR "No spirv-val (it comes with the Vulkan SDK)")
     endif()
 endif()
-add_subdirectory("${NGFX_NG}" "${CMAKE_BINARY_DIR}/NoGraphicsAPI" EXCLUDE_FROM_ALL)
+add_subdirectory("${NGFX_NG}" "${CMAKE_CURRENT_BINARY_DIR}/NoGraphicsAPI" EXCLUDE_FROM_ALL)
 
-set(NGFX_OUT "${CMAKE_BINARY_DIR}/shaders")
+set(NGFX_OUT "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 
 # --- the layer's own shaders --------------------------------------------------------
 # The screen's copy into the window, and the downsampling generate_mips
@@ -136,7 +148,10 @@ add_library(ngfx STATIC
     "${NGFX_OUT}/ngfx_mips_code.h"
 )
 target_include_directories(ngfx PRIVATE native "${NGFX_OUT}")
-target_link_libraries(ngfx PUBLIC SDL3::SDL3-static NoGraphicsAPI::NoGraphicsAPI NoGraphicsAPIUtility::uploads
+# PRIVATE, so only the link closure reaches the targets of Goose's wrapper
+# project, whose top level enables C alone and can't meet NoGraphicsAPI's
+# cxx_std_20 (docs/goose-findings.md).
+target_link_libraries(ngfx PRIVATE SDL3::SDL3-static NoGraphicsAPI::NoGraphicsAPI NoGraphicsAPIUtility::uploads
                       NoGraphicsAPIUtility::textures NoGraphicsAPIUtility::allocators)
 target_compile_definitions(ngfx PRIVATE
     NGFX_SLANGC_PATH="${NGFX_SLANGC}"
@@ -153,51 +168,6 @@ else()
     target_compile_options(ngfx PRIVATE -Wall -Wextra -Wno-missing-field-initializers)
 endif()
 if(APPLE)
-    target_link_libraries(ngfx PUBLIC "-framework Metal" "-framework QuartzCore"
+    target_link_libraries(ngfx PRIVATE "-framework Metal" "-framework QuartzCore"
                           "-framework Foundation" c++ objc)
 endif()
-
-# --- Goose programs -------------------------------------------------------------
-# ngfx_program(name source): `source` compiled to ${name}.c, with lib/ as a
-# standard library directory ahead of Goose's own, then to an executable
-# that links Goose's layers as well as ngfx: what a program does not call,
-# the linker leaves out.
-file(GLOB NGFX_GOOSE_LIBS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/lib/*.goose")
-set(NGFX_GOOSE_OPT -O2 CACHE STRING "The Goose compiler's optimization level for programs")
-function(ngfx_program name source)
-    set(c "${CMAKE_BINARY_DIR}/programs/${name}.c")
-    add_custom_command(
-        OUTPUT "${c}"
-        COMMAND "${CMAKE_COMMAND}" -E env "GOOSE_STDLIB=${GOOSE_DIR}/stdlib"
-                "$<TARGET_FILE:goose>" ${NGFX_GOOSE_OPT} --standalone -o "${c}"
-                --stdlib "${CMAKE_CURRENT_SOURCE_DIR}/lib" "${source}"
-        DEPENDS "${source}" ${NGFX_GOOSE_LIBS} goose
-        VERBATIM
-        COMMENT "Compiling ${name} from Goose to C")
-    add_executable(${name} "${c}")
-    target_link_libraries(${name} PRIVATE ngfx goose_gfx goose_audio goose_ui)
-    if(MSVC)
-        # The generated C is the compiler's to vet, not ours.
-        target_compile_options(${name} PRIVATE /W0)
-    else()
-        target_compile_options(${name} PRIVATE -w)
-        target_link_libraries(${name} PRIVATE m Threads::Threads)
-    endif()
-    set_target_properties(${name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "$<1:${CMAKE_BINARY_DIR}/bin>")
-endfunction()
-
-if(NOT MSVC)
-    find_package(Threads REQUIRED)
-endif()
-
-file(GLOB samples CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/samples/*.goose")
-foreach(source IN LISTS samples)
-    get_filename_component(name "${source}" NAME_WE)
-    ngfx_program(${name} "${source}")
-endforeach()
-
-file(GLOB tests CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/test/*.goose")
-foreach(source IN LISTS tests)
-    get_filename_component(name "${source}" NAME_WE)
-    ngfx_program(${name} "${source}")
-endforeach()

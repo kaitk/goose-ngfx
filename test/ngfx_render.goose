@@ -8,7 +8,7 @@
 import std;
 import vec;
 import os;
-import ngfx;
+import ngfx from "../";
 
 let W = 64;
 

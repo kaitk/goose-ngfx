@@ -1,6 +1,6 @@
 // An error in Slang a global holds is reported at its line in the module
 // the parts make.
-import ngfx;
+import ngfx from "../";
 
 let helpers = """
     float twice(float x) { return x * oops; }

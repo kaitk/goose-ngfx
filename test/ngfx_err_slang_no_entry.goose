@@ -1,5 +1,5 @@
 // A module with no entry point is nothing a pipeline can be made from.
-import ngfx;
+import ngfx from "../";
 
 fn main() {
     let shader = ngfx::slang("""

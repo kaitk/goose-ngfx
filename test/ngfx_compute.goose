@@ -8,7 +8,7 @@
 import std;
 import vec;
 import os;
-import ngfx;
+import ngfx from "../";
 
 // The roots, as the shaders declare them.
 struct Scale { xs: u64, ys: u64, k: f32, count: u32 }
