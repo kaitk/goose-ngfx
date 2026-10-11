@@ -315,13 +315,14 @@ ngfx `samples/mini_doom.goose:1529-1557`; gfx `orig/31_mini_doom.goose:1511-1539
   Costs one submission a frame. Flag 3.
 - **P3. Three drawables on Metal** (task 004), passing `desired_swapchain_image_count = 3`, if the
   benchmark shows vsync stalls. Flag 4.
-- **P4. More pending upload batches** than frames in flight, so overlapping updates in
-  one frame never make the CPU wait. Flag 6.
-- **P5. `create_buffer` without the intermediate vector**: upload the data, then the
-  zeros, straight into staging. Flag 7.
-- **P6. Trim the hot paths**: resolve the PSO once per bind and pass, drop the run-time
+- [x] **P4. More pending upload batches** than frames in flight, so overlapping updates in
+  one frame never make the CPU wait. Flag 6. Done in `7c04663`.
+- [x] **P5. `create_buffer` without the intermediate vector**: upload the data, then the
+  zeros, straight into staging. Flag 7. Done in `71ec02b`.
+- [x] **P6. Trim the hot paths**: resolve the PSO once per bind and pass, drop the run-time
   thread check from draws and `frame_data` if `main_thread_only` covers them, and flush
-  in `update_texture` only when staging needs it. Flags 8 to 10.
+  in `update_texture` only when staging needs it. Flags 8 to 10. Done: the flushes in
+  `7c04663`, the rest in `329e970`.
 - **P7. ngfx_ui: one root per texture, and indexed draws** (task 007). Give per-draw `first` as the
   draw's `first_vertex` (check that `SV_VertexID` includes it on both backends), make a
   root only when the texture changes, and let `draw_indexed` take an index address and

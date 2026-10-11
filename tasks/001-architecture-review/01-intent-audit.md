@@ -220,10 +220,12 @@ cited by section.
 
 ## Proposed follow-ups
 
-- Upload batching (row 2): flush `update_texture` only on overlap, and size
-  `max_pending_batches` to a frame's flushes.
-- Transfer usage (row 5): drop the transfer flags from depth formats, which also makes
-  `DEPTH24_STENCIL8` creatable on Vulkan; add a test that creates one.
+- [x] Upload batching (row 2): flush `update_texture` only on overlap, and size
+  `max_pending_batches` to a frame's flushes. Done in `7c04663`.
+- [x] Transfer usage (row 5): drop the transfer flags from depth formats, which also makes
+  `DEPTH24_STENCIL8` creatable on Vulkan; add a test that creates one. Done in `70969e1`.
+  Metal has no 24-bit depth, so there `DEPTH24_STENCIL8` falls back to 32-bit float depth
+  with stencil.
 - Eager pipelines (row 7), task 005: a way to name a pipeline's target formats at creation, used by
   the samples.
 - Indirect commands (row 19), task 006: `draw_indirect`, `draw_indexed_indirect`, and
