@@ -1,6 +1,6 @@
 # 006: Add indirect draws and dispatch
 
-Status: in-progress
+Status: done
 
 NoGraphicsAPI has `draw_indirect`, `draw_indexed_indirect`, and `dispatch_indirect`
 (`NoGraphicsAPI.hpp:817-821`), which take a GPU pointer to their arguments. ngfx has
@@ -15,10 +15,9 @@ them.
       way as task 007's `draw_indexed`
 - [x] `ngfx.goose`, `native/ngfx_api.h`, and `docs/api.md` changed together, with
       `scripts/api_check.py` passing
-- [ ] A test in which a compute pass writes the arguments and draws with them, behind an
+- [x] A test in which a compute pass writes the arguments and draws with them, behind an
       `ngfx::barrier(COMPUTE_WRITE, STAGE_INDIRECT | ACCESS_INDIRECT_READ)`, passing
-      plainly and under `GOOSE_NGFX_SYNC=full` (`test/ngfx_indirect.goose`; passes on
-      Metal, see below)
+      plainly and under `GOOSE_NGFX_SYNC=full` (`test/ngfx_indirect.goose`)
 
 ## Results
 
@@ -27,7 +26,5 @@ On the M1 Pro (Metal 4), 2026-10-11: `test/ngfx_indirect.goose` passes plainly a
 `DrawIndexedArguments`, and one `DispatchArguments`; the draws fill the screen's two
 halves, and `dispatch_indirect` runs the 3 groups it was given.
 
-## Needs Vulkan
-
-- `test/ngfx_indirect.goose`, plainly and under `GOOSE_NGFX_SYNC=full`, on Windows or
-  Linux. The test criterion stays open until then.
+On the RTX 4090 (Vulkan), 2026-10-11: it passes both ways, and under the validation
+layer with synchronization validation, which reports nothing, so the barrier is enough.

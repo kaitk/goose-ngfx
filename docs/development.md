@@ -158,6 +158,17 @@ A run that finds no GPU device counts as a skip. Once the native part is built, 
 suite takes about a minute on the RTX 4090; most of it is building the samples and
 slangc. On the M1 Pro it took 3.5 minutes, the first build of the native part included.
 
+On Vulkan, the Khronos validation layer checks the suite, synchronization included. The
+layer prints what it finds on stdout, so any message fails the test or sample it comes
+from:
+
+```powershell
+$env:VK_INSTANCE_LAYERS = "VK_LAYER_KHRONOS_validation"
+$env:VK_KHRONOS_VALIDATION_REPORT_FLAGS = "error,warn"
+$env:VK_KHRONOS_VALIDATION_VALIDATE_SYNC = "true"
+python scripts/run_tests.py
+```
+
 ## Linux, headless
 
 NoGraphicsAPI can't present on Linux, so `ngfx::open` fails there with "NoGraphicsAPI

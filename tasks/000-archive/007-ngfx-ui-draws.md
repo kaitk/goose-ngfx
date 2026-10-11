@@ -1,6 +1,6 @@
 # 007: Draw ui with fewer externs and indexed quads
 
-Status: in-progress
+Status: done
 
 `ngfx_ui.goose` makes 4 externs per draw where gfx's ui makes 3, and a 40-byte root
 per draw, though only `first` and the texture change between draws
@@ -12,11 +12,11 @@ proposal P7.
 
 ## Acceptance criteria
 
-- [ ] `first` passed as the draw's `first_vertex`, after checking that `SV_VertexID`
+- [x] `first` passed as the draw's `first_vertex`, after checking that `SV_VertexID`
       includes it on both Metal and Vulkan, and recording the result. It includes it on
-      Metal, measured, and not on Vulkan, by Slang's SPIR-V (`docs/design.md`,
-      "Surface"), so `first` is the indexed draw's `first_index` instead, where
-      `SV_VertexID` is the index on both. A Vulkan run is still due
+      Metal and not on Vulkan, both measured (`docs/design.md`, "Surface"), so `first`
+      is the indexed draw's `first_index` instead, where `SV_VertexID` is the index on
+      both
 - [x] A root made only when the texture changes
 - [x] `draw_indexed` takes an index range by GPU address, so indices in `frame_data`
       work. This is a surface change: `ngfx.goose`, `native/ngfx_api.h`, and
@@ -33,9 +33,8 @@ On the M1 Pro (Metal 4), 2026-10-11: a probe drawing with `first_vertex` 5 saw
 and from a buffer's range. Every test passes both ways, and `ui_todo`'s screenshot is
 byte-identical to the one before the change, both ways.
 
-## Needs Vulkan
-
-- Run `test/ngfx_draw_ranges.goose`, `ui_todo`, and the rest, plainly and under
-  `GOOSE_NGFX_SYNC=full`, on Windows or Linux.
-- Confirm by a run that `SV_VertexID` excludes `first_vertex` on Vulkan, as Slang's SPIR-V
-  says.
+On the RTX 4090 (Vulkan), 2026-10-11: the same probe, its vertex shader recording its IDs
+into a buffer, saw `SV_VertexID` 0 to 2 for both draws, and `SV_InstanceID` 0, as
+Slang's SPIR-V says. `test/ngfx_draw_ranges.goose` passes both ways, and `ui_todo`'s
+screenshot is byte-identical to the one before the change, both ways, as task 003
+records.

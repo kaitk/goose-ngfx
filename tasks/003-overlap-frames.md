@@ -26,8 +26,8 @@ proposals P1 and P2.
       `GOOSE_NGFX_SYNC=full` the barrier is still there
 - [x] The passes are submitted before the swapchain image is acquired, and only the copy
       waits for it
-- [ ] Tests and samples pass plainly and under `GOOSE_NGFX_SYNC=full`, with unchanged
-      output, on Metal and Vulkan (Metal done; see below)
+- [x] Tests and samples pass plainly and under `GOOSE_NGFX_SYNC=full`, with unchanged
+      output, on Metal and Vulkan
 - [x] The screen decisions in `docs/design.md` updated, including the extra memory: one
       more screen and depth, 8 MB at 1280 x 800
 - [ ] Task 002's frame-time numbers rerun for `cube` and `minecraft`, before and after
@@ -45,11 +45,21 @@ clearing pass drew, records the same-target barrier instead.
 Vulkan needs no memory dependency for the clear of a switched screen. `docs/design.md`
 ("Synchronization") gives the reasoning from the spec and NoGraphicsAPI's backend.
 
-## Needs Vulkan
+On the RTX 4090 (Vulkan, driver 617.42), 2026-10-11, at Goose `4f23f22` with slangc
+2026.18.2: every test passes plainly and under `GOOSE_NGFX_SYNC=full`, with clang-cl,
+with MSVC, and built with `--aot`. Each sample prints the same and saves a screenshot
+byte-identical to the one `e05b39d`, before tasks 003 to 007, saves, both ways, headless.
+The tests and samples also pass under the Khronos validation layer with synchronization
+validation (`VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation`,
+`VK_KHRONOS_VALIDATION_VALIDATE_SYNC=true`), which reports nothing. Every sample also ran
+windowed for 300 frames under the layer, both ways, and the cube, Mini Minecraft, and the
+to-do list ran for 1500 frames while `SetWindowPos` resized their windows five times,
+again with nothing reported; a screenshot after a resize has the new client size, and
+by eye everything renders and resizes well.
 
-- Tests and samples, plainly and under `GOOSE_NGFX_SYNC=full`, on Windows or Linux.
-- A windowed run on Windows, which is the only Vulkan platform that presents, to exercise
-  the second submission and its acquire.
+`test/ngfx_screen_frames.goose` cleared to 0.5 green and expected 128, which Metal gives
+and NVIDIA's Vulkan gives as 127: 0.5 is 127.5 in bytes, halfway between two. The test
+now clears to multiples of 0.2, which no rounding splits.
 
 ## Not done here
 

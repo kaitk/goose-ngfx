@@ -1,6 +1,6 @@
 # 005: Create pipelines before the first draw
 
-Status: in-progress
+Status: done
 
 ngfx creates a pipeline at its first draw into a new set of target formats
 (`native/ngfx_draw.cpp:51-76`), so the driver's shader compile happens mid-frame.
@@ -20,8 +20,7 @@ gfx's surface.
 - [x] A test that draws with a prepared pipeline and one created lazily, and that
       misuses `prepare` (`test/ngfx_prepare.goose`, and
       `test/ngfx_prepare_misuse.goose`, since a misuse aborts the program)
-- [ ] Tests and samples pass plainly and under `GOOSE_NGFX_SYNC=full` (Metal done; see
-      below)
+- [x] Tests and samples pass plainly and under `GOOSE_NGFX_SYNC=full`
 
 ## Results
 
@@ -31,6 +30,5 @@ byte-identical to the one before the change, both ways. The samples call
 `prepare_screen` for each pipeline after creating it, and `ui_todo` calls
 `ngfx_ui::prepare()` before its loop.
 
-## Needs Vulkan
-
-- Tests and samples, plainly and under `GOOSE_NGFX_SYNC=full`, on Windows or Linux.
+On the RTX 4090 (Vulkan), 2026-10-11: the same, and under the validation layer too, as
+task 003 records.

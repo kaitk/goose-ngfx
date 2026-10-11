@@ -176,7 +176,7 @@ compares with the `extern` declarations in `ngfx.goose`.
   compiles it to SPIR-V as `VertexIndex - BaseVertex` and to MSL as `[[vertex_id]]`,
   which Metal starts at `vertexStart` and offsets by `baseVertex`; `SV_InstanceID`
   excludes `first_instance` on both. Seen in slangc 2026.18.3's output, and measured on
-  Metal (2026-10-11). Shaders that fetch their own vertices take where they start from
+  Metal and on Vulkan (2026-10-11); on Vulkan, `vertex_offset` is excluded too. Shaders that fetch their own vertices take where they start from
   their root, or draw indexed with `vertex_offset` 0, where `SV_VertexID` is the index on
   both. `ngfx_ui` draws that way.
 - **Indirect commands take their arguments' address**, as a draw takes its root's, and
