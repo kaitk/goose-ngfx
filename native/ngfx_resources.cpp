@@ -168,12 +168,17 @@ bool create_texture(const ngfx_texture_desc& in, uint32* id, TextureSlot** out)
     if (depth != ((usage & NGFX_DEPTH_TARGET) != 0))
         return ngfx_misuse(depth ? "a depth format needs DEPTH_TARGET usage" : "DEPTH_TARGET usage needs a depth format");
 
-    // Every texture can be updated and read back, as gfx's can.
-    TextureUsage nu = TextureUsage::transfer_source | TextureUsage::transfer_destination;
+    // Every color texture can be updated and read back, as gfx's can. Depth
+    // can be neither, and both backends refuse transfer usage on depth/stencil.
+    TextureUsage nu = depth ? TextureUsage::none : TextureUsage::transfer_source | TextureUsage::transfer_destination;
     if (usage & NGFX_SAMPLED) nu = nu | TextureUsage::sampled;
     if (usage & NGFX_COLOR_TARGET) nu = nu | TextureUsage::color_attachment;
     if (usage & NGFX_DEPTH_TARGET) nu = nu | TextureUsage::depth_stencil_attachment;
     if (usage & NGFX_STORAGE) nu = nu | TextureUsage::storage;
+    // Metal, and some Vulkan GPUs, have no 24-bit depth; gfx's DEPTH falls
+    // back the same way when its first choice is missing.
+    if (format == Format::d24_unorm_s8_uint && !supports_texture_format(g.device, format, nu))
+        format = Format::d32_float_s8_uint;
     if (!supports_texture_format(g.device, format, nu))
         return ngfx_fail("this device does not support texture format %d with usage %d", d.format, d.usage);
     static const TextureType types[] = {TextureType::two_d, TextureType::two_d_array, TextureType::three_d, TextureType::cube};

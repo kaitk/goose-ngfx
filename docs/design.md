@@ -182,8 +182,12 @@ compares with the `extern` declarations in `ngfx.goose`.
   between draws goes in `frame_data`.
 - **Texture initialization is submitted at once**, in its own command buffer, as
   NoGraphicsAPI's cube example does, so no upload can overtake it.
-- **Every texture can be updated and read back** (`transfer_source |
-  transfer_destination`), as in gfx. This may cost compression on some GPUs.
+- **Every color texture can be updated and read back** (`transfer_source |
+  transfer_destination`), as in gfx. This may cost compression on some GPUs. Depth
+  textures get neither: both backends refuse transfer usage on a combined depth/stencil
+  format, and ngfx refuses to update or read back depth anyway.
+- **`DEPTH24_STENCIL8` falls back to 32-bit float depth with stencil** where the device
+  lacks it, as it always does on Metal, much as gfx's `DEPTH` falls back.
 
 ### Synchronization
 
