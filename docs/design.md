@@ -179,6 +179,12 @@ compares with the `extern` declarations in `ngfx.goose`.
   Metal (2026-10-11). Shaders that fetch their own vertices take where they start from
   their root, or draw indexed with `vertex_offset` 0, where `SV_VertexID` is the index on
   both. `ngfx_ui` draws that way.
+- **Indirect commands take their arguments' address**, as a draw takes its root's, and
+  `draw_indexed_indirect` its indices as a `Range`, as `draw_indexed` does. The layer
+  checks the address is 4-byte aligned and the stride, and gives NoGraphicsAPI the
+  range the commands span; it can't check the indices the GPU-written arguments name.
+  `DrawArguments`, `DrawIndexedArguments`, and `DispatchArguments` spell the layouts,
+  which Vulkan's and Metal's indirect argument structs share.
 - **Pipelines are created lazily per set of target formats**, as gfx does, because
   NoGraphicsAPI fixes formats in the pipeline.
 - **The name is `ngfx`.** It reads as gfx on NoGraphicsAPI. `gfx2` would presume it

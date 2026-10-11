@@ -94,6 +94,61 @@ bool bind_for_draw(const char* what)
     return true;
 }
 
+// The checks a draw_indexed or draw_indexed_indirect makes of its indices,
+// past those of the range's own buffer.
+bool check_indices(const char* what, uint64 indices, int64_t index_size)
+{
+    if (index_size != 2 && index_size != 4)
+        return ngfx_misuse("%s: indices of %lld bytes, not 2 or 4", what, (long long)index_size);
+    if (indices % uint64(index_size))
+        return ngfx_misuse("%s: indices at %#llx, not aligned to their %lld bytes", what, (unsigned long long)indices,
+                           (long long)index_size);
+    return true;
+}
+
+// The arguments of `count` indirect commands of `size` bytes each, `stride`
+// apart (0: packed): 4-byte aligned, as Vulkan requires, and as GPU memory.
+bool indirect_arguments(const char* what, uint64 arguments, int64_t count, int64_t stride, uint32 size, GpuRange* out)
+{
+    if (!arguments || arguments % 4)
+        return ngfx_misuse("%s: arguments at %#llx, not a 4-byte aligned address", what, (unsigned long long)arguments);
+    if (stride == 0) stride = size;
+    if (count < 0 || stride < size || stride % 4 || stride > (int64_t(1) << 20))
+        return ngfx_misuse("%s: %lld commands %lld bytes apart, for commands of %u bytes", what, (long long)count,
+                           (long long)stride, size);
+    *out = {.gpu = reinterpret_cast<void*>(uintptr_t(arguments)),
+            .size = count ? uint64(count - 1) * uint64(stride) + size : 0};
+    return true;
+}
+
+// The bound compute pipeline, for a dispatch between passes.
+ComputeSlot* compute_for_dispatch(const char* what, uint64_t root)
+{
+    if (g.in_pass)
+    {
+        ngfx_misuse("%s inside a pass: dispatches go between passes", what);
+        return nullptr;
+    }
+    ComputeSlot* c = g.compute ? g.computes.get(g.compute) : nullptr;
+    if (!c)
+    {
+        if (!g.compute) ngfx_misuse("%s with no compute pipeline bound", what);
+        return nullptr;
+    }
+    if (root % 16) ngfx_misuse("%s: a root at %#llx is not 16-byte aligned", what, (unsigned long long)root);
+    return c;
+}
+
+void bind_for_dispatch(ComputeSlot* c)
+{
+    if (g.full_sync) full_sync_barrier(g.commands);
+    if (g.bound_pso != c->pso)
+    {
+        bind_pso(g.commands, c->pso);
+        g.bound_pso = c->pso;
+    }
+}
+
 std::string entry_name(ngfx_bytes s)
 {
     return std::string(reinterpret_cast<const char*>(s.data), s.len > 0 ? size_t(s.len) : 0);
@@ -500,18 +555,7 @@ void ngfx_draw_indexed(uint64_t root, uint64_t indices, int64_t indices_size, in
     if (!ngfx_need_open("draw_indexed") || !bind_for_draw("draw_indexed")) return;
     if (root % 16) ngfx_misuse("draw_indexed: a root at %#llx is not 16-byte aligned", (unsigned long long)root);
     // A buffer's range of 0 has been reported already.
-    if (!indices) return;
-    if (index_size != 2 && index_size != 4)
-    {
-        ngfx_misuse("draw_indexed: indices of %lld bytes, not 2 or 4", (long long)index_size);
-        return;
-    }
-    if (indices % uint64(index_size))
-    {
-        ngfx_misuse("draw_indexed: indices at %#llx, not aligned to their %lld bytes", (unsigned long long)indices,
-                    (long long)index_size);
-        return;
-    }
+    if (!indices || !check_indices("draw_indexed", indices, index_size)) return;
     if (count <= 0 || instances <= 0) return;
     if (first_index < 0 || indices_size < 0 || uint64(first_index + count) * uint64(index_size) > uint64(indices_size))
     {
@@ -525,29 +569,47 @@ void ngfx_draw_indexed(uint64_t root, uint64_t indices, int64_t indices_size, in
                  uint32(first_index), int32(vertex_offset), uint32(first_instance));
 }
 
+void ngfx_draw_indirect(uint64_t root, uint64_t arguments, int64_t count, int64_t stride)
+{
+    if (!ngfx_need_device("draw_indirect") || !bind_for_draw("draw_indirect")) return;
+    if (root % 16) ngfx_misuse("draw_indirect: a root at %#llx is not 16-byte aligned", (unsigned long long)root);
+    GpuRange args;
+    if (!indirect_arguments("draw_indirect", arguments, count, stride, 16, &args) || !count) return;
+    draw_indirect(g.commands, reinterpret_cast<const void*>(uintptr_t(root)), args, uint32(count), uint32(stride));
+}
+
+void ngfx_draw_indexed_indirect(uint64_t root, uint64_t indices, int64_t indices_size, int64_t index_size,
+                                uint64_t arguments, int64_t count, int64_t stride)
+{
+    if (!ngfx_need_device("draw_indexed_indirect") || !bind_for_draw("draw_indexed_indirect")) return;
+    if (root % 16) ngfx_misuse("draw_indexed_indirect: a root at %#llx is not 16-byte aligned", (unsigned long long)root);
+    if (!indices || !check_indices("draw_indexed_indirect", indices, index_size)) return;
+    GpuRange args;
+    if (!indirect_arguments("draw_indexed_indirect", arguments, count, stride, 20, &args) || !count) return;
+    // The GPU reads the indices the arguments name, which the layer can't
+    // check against the range.
+    draw_indexed_indirect(g.commands, reinterpret_cast<const void*>(uintptr_t(root)),
+                          {.gpu = reinterpret_cast<void*>(uintptr_t(indices)), .size = uint64(indices_size)},
+                          index_size == 2 ? IndexType::uint16 : IndexType::uint32, args, uint32(count), uint32(stride));
+}
+
 void ngfx_dispatch(uint64_t root, int64_t x, int64_t y, int64_t z)
 {
     if (!ngfx_need_device("dispatch")) return;
-    if (g.in_pass)
-    {
-        ngfx_misuse("dispatch inside a pass: dispatches go between passes");
-        return;
-    }
-    ComputeSlot* c = g.compute ? g.computes.get(g.compute) : nullptr;
-    if (!c)
-    {
-        if (!g.compute) ngfx_misuse("dispatch with no compute pipeline bound");
-        return;
-    }
-    if (root % 16) ngfx_misuse("dispatch: a root at %#llx is not 16-byte aligned", (unsigned long long)root);
-    if (x <= 0 || y <= 0 || z <= 0) return;
-    if (g.full_sync) full_sync_barrier(g.commands);
-    if (g.bound_pso != c->pso)
-    {
-        bind_pso(g.commands, c->pso);
-        g.bound_pso = c->pso;
-    }
+    ComputeSlot* c = compute_for_dispatch("dispatch", root);
+    if (!c || x <= 0 || y <= 0 || z <= 0) return;
+    bind_for_dispatch(c);
     dispatch(g.commands, reinterpret_cast<const void*>(uintptr_t(root)), {.x = uint32(x), .y = uint32(y), .z = uint32(z)});
+}
+
+void ngfx_dispatch_indirect(uint64_t root, uint64_t arguments)
+{
+    if (!ngfx_need_device("dispatch_indirect")) return;
+    ComputeSlot* c = compute_for_dispatch("dispatch_indirect", root);
+    GpuRange args;
+    if (!c || !indirect_arguments("dispatch_indirect", arguments, 1, 0, 12, &args)) return;
+    bind_for_dispatch(c);
+    dispatch_indirect(g.commands, reinterpret_cast<const void*>(uintptr_t(root)), args);
 }
 
 void ngfx_barrier(int32_t before, int32_t after)

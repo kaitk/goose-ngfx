@@ -766,6 +766,35 @@ fn draw_indexed_instanced(root: u64, indices: Buffer, index_size: i64, count: i6
     draw_indexed(root, range(indices), index_size, count, instances, 0, 0, 0)
 }
 
+// Draws whose arguments the GPU reads from memory at `arguments`, such as a
+// dispatch wrote, behind a barrier(COMPUTE_WRITE, STAGE_INDIRECT |
+// ACCESS_INDIRECT_READ): `count` commands, each a DrawArguments or
+// DrawIndexedArguments, `stride` bytes apart (0: packed).
+struct DrawArguments { vertices: u32, instances: u32, first_vertex: u32, first_instance: u32 }
+struct DrawIndexedArguments { count: u32, instances: u32, first_index: u32, vertex_offset: i32,
+                              first_instance: u32 }
+extern "ngfx_draw_indirect" fn draw_indirect(root: u64, arguments: u64, count: i64, stride: i64);
+fn draw_indirect(root: u64, arguments: u64) { draw_indirect(root, arguments, 1, 0) }
+extern "ngfx_draw_indexed_indirect" fn draw_indexed_indirect_raw(root: u64, indices: u64,
+                                                                    indices_size: i64,
+                                                                    index_size: i64, arguments: u64,
+                                                                    count: i64, stride: i64);
+fn draw_indexed_indirect(root: u64, indices: Range, index_size: i64, arguments: u64, count: i64,
+                         stride: i64) {
+    draw_indexed_indirect_raw(root, indices.address, indices.size, index_size, arguments, count,
+                              stride)
+}
+fn draw_indexed_indirect(root: u64, indices: Range, index_size: i64, arguments: u64) {
+    draw_indexed_indirect(root, indices, index_size, arguments, 1, 0)
+}
+fn draw_indexed_indirect(root: u64, indices: Buffer, index_size: i64, arguments: u64, count: i64,
+                         stride: i64) {
+    draw_indexed_indirect(root, range(indices), index_size, arguments, count, stride)
+}
+fn draw_indexed_indirect(root: u64, indices: Buffer, index_size: i64, arguments: u64) {
+    draw_indexed_indirect(root, range(indices), index_size, arguments, 1, 0)
+}
+
 // --- compute -------------------------------------------------------------------
 
 // Dispatches go between passes. What a dispatch writes reaches a later pass
@@ -773,6 +802,10 @@ fn draw_indexed_instanced(root: u64, indices: Buffer, index_size: i64, count: i6
 extern "ngfx_bind_compute_pipeline" fn bind(p: ComputePipeline);
 // Runs x * y * z thread groups of the shader's numthreads.
 extern "ngfx_dispatch" fn dispatch(root: u64, x: i64, y: i64, z: i64);
+// The same, with the thread group counts a DispatchArguments at `arguments`
+// holds, which the GPU reads (see draw_indirect).
+struct DispatchArguments { x: u32, y: u32, z: u32 }
+extern "ngfx_dispatch_indirect" fn dispatch_indirect(root: u64, arguments: u64);
 
 // --- synchronization -------------------------------------------------------------
 

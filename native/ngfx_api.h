@@ -188,7 +188,10 @@ typedef struct {
     X(void, ngfx_scissor, (int64_t x, int64_t y, int64_t w, int64_t h)) \
     X(void, ngfx_draw, (uint64_t root, int64_t vertices, int64_t instances, int64_t first_vertex, int64_t first_instance)) \
     X(void, ngfx_draw_indexed, (uint64_t root, uint64_t indices, int64_t indices_size, int64_t index_size, int64_t count, int64_t instances, int64_t first_index, int64_t vertex_offset, int64_t first_instance)) \
+    X(void, ngfx_draw_indirect, (uint64_t root, uint64_t arguments, int64_t count, int64_t stride)) \
+    X(void, ngfx_draw_indexed_indirect, (uint64_t root, uint64_t indices, int64_t indices_size, int64_t index_size, uint64_t arguments, int64_t count, int64_t stride)) \
     X(void, ngfx_dispatch, (uint64_t root, int64_t x, int64_t y, int64_t z)) \
+    X(void, ngfx_dispatch_indirect, (uint64_t root, uint64_t arguments)) \
     /* Synchronization the program states: what `before` did, before `after` does it. */ \
     X(void, ngfx_barrier, (int32_t before, int32_t after))
 

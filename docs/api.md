@@ -38,6 +38,9 @@ with `goose file.goose` or builds with `goose build file.goose`
   descriptor indices (`index(t)`, `storage_index(t, mip)`).
 - **`draw_indexed` takes its indices as a `Range`**, an address and a size: a buffer's
   (`range(b)`, or the buffer itself) or this frame's memory (`frame_range(bytes)`).
+- **Indirect draws and dispatches** (`draw_indirect`, `draw_indexed_indirect`,
+  `dispatch_indirect`) read their arguments from a GPU address, so a compute pass can
+  write them, behind `barrier(COMPUTE_WRITE, STAGE_INDIRECT | ACCESS_INDIRECT_READ)`.
 - **Clip space is y down**, depth 0 to 1, and matrices are row-major `float4x4`s.
   `perspective`, `ortho`, and `look_at` produce them.
 - **The program states the barriers between its own passes and dispatches**, with
