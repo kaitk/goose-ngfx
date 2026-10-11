@@ -69,7 +69,7 @@ pixel by one step on Vulkan.
 | --- | --- |
 | Windows, Vulkan 1.4 | Tested here on an RTX 4090, headless and windowed. |
 | macOS 26, Metal 4 | Tested here on an M1 Pro, headless, and windowed in a short run. |
-| Linux, Vulkan 1.4 | Not built. NoGraphicsAPI is headless-only on Linux, and `CMakeLists.txt` stops there. Needs a little work to build headless. |
+| Linux, Vulkan 1.4 | Headless only. Builds and runs in WSL (Ubuntu 26.04, gcc 15), where no driver has `VK_EXT_descriptor_heap`: the tests that need no device pass, and the rest skip. Untried on a GPU. |
 
 ## What it costs
 
@@ -232,8 +232,9 @@ compares with the `extern` declarations in `ngfx.goose`.
 
 ## Open
 
-- Verify on Vulkan on Linux, headless on AMD, which needs `CMakeLists.txt` to build
-  there (see [Status](#status)).
+- Run the tests on Linux on a GPU: Mesa RADV 26.2 or later, or NVIDIA's driver. Mesa's
+  lavapipe lacks `VK_EXT_descriptor_heap` and `VK_KHR_shader_untyped_pointers`, even on
+  Mesa's main branch, so no CPU driver can stand in.
 - Cache compiled Slang modules, keyed on the source, if the 0.2 s per module at startup
   starts to matter.
 - Uploads on a copy queue, waiting on `UploadQueue::flush()`'s timeline point, would stop

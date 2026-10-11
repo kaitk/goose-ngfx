@@ -206,3 +206,18 @@ Found on `2de6d1d`. Status: open
 The C and the objects go under `~/.goose`, which the compiler makes as it needs.
 
 Workaround: `run_tests.py` makes `build/bin` first.
+
+## A package that builds nothing fails at the link probe
+
+Found on `4f23f22`, with `goose_gfx` `v1`. Status: open
+
+Goose's gfx package builds nothing on Linux without X11 or Wayland headers: its
+CMakeLists prints why and returns before defining `goose_gfx_package`. The compiler's
+wrapper still links its probe against that name, as a library, and the program fails
+with the linker's error, while gfx's explanation sits in the configure log:
+
+    /usr/bin/ld: cannot find -lgoose_gfx_package: No such file or directory
+
+Seen building `samples/ui_todo.goose` and `samples/mini_doom.goose` in WSL. Workaround:
+install the X11 headers ([development.md](development.md#toolchain)). The wrapper could
+check that the target exists and print the configure log's last message.

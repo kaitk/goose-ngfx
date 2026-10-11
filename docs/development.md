@@ -1,11 +1,12 @@
 # Development
 
-This repository is built and tested on macOS with Metal 4 and on Windows with Vulkan.
-The build and the tests are the same on both; the toolchains differ.
+This repository is built and tested on macOS with Metal 4 and on Windows with Vulkan,
+and built headless on Linux. The build and the tests are the same everywhere; the
+toolchains differ.
 
 ## Toolchain
 
-On both, the Goose compiler is built from `aardappel/goose` at the pin in `README.md`,
+Everywhere, the Goose compiler is built from `aardappel/goose` at the pin in `README.md`,
 and named by `GOOSE` or found on `PATH`. Python runs the scripts.
 
 macOS, tested on an M1 Pro (2026-10-11):
@@ -34,9 +35,27 @@ Windows 11, tested on an RTX 4090 (driver 617.42):
 | slangc | `..\slang\bin\slangc.exe`, beside this repository, from Slang's `windows-x86_64` release | 2026.18.3 (2026.18.2 or later) |
 | Python | `PATH` | 3.14.6 |
 
+Linux, tested in WSL 2 on Ubuntu 26.04 (2026-10-11), headless only:
+
+| Tool | Where | Version |
+|---|---|---|
+| gcc, CMake, Ninja, git | the distribution's | gcc 15.2, CMake 4.2.3 |
+| Vulkan SDK | LunarG's Linux tarball, `source <sdk>/setup-env.sh`, which also has `spirv-val` | 1.4.363 (1.4.357 or later) |
+| slangc | Slang's `linux-x86_64` release | 2026.18.3 (2026.18.2 or later) |
+| X11 headers, for `ui` and `audio` | `libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxtst-dev libxkbcommon-dev` | |
+| Python | `python3` | 3.14 |
+
+The distribution's Vulkan headers may be older than 1.4.357 (Ubuntu 26.04's are
+1.4.341), hence the SDK. ngfx's own SDL needs no X11: it never opens a window on Linux.
+Goose's gfx package, which `ui` and `audio` come from, builds nothing without X11 or
+Wayland headers, and SDL then wants all of the X11 ones above, not only the two gfx's
+message names. Without them, a program importing `ui` or `audio` fails to link
+(`cannot find -lgoose_gfx_package`). On an immutable distribution such as Bazzite,
+build inside a toolbox or distrobox container (untried).
+
 `goose toolchain` says which C compiler, CMake, and git the Goose compiler uses. On the
-Mac it picks `/usr/bin/cc`, Apple clang. On Windows it picks clang-cl from the Build
-Tools; `--cc msvc` picks cl.
+Mac it picks `/usr/bin/cc`, Apple clang; on Linux `cc`. On Windows it picks clang-cl
+from the Build Tools; `--cc msvc` picks cl.
 
 The package's CMake looks for slangc in `NGFX_SLANGC`, in `../slang/bin` beside the
 package, then on `PATH`, and for `spirv-val` in `$VULKAN_SDK/Bin`. A fetched copy of the
@@ -56,7 +75,7 @@ and SDL; Goose fetches them too when it fetches the package from git.
 
 The Goose compiler isn't a submodule: a package fetched with its submodules would carry a
 copy. Build it from a clone of `aardappel/goose` at the pin, as its README says, and
-point `GOOSE` at it. On macOS:
+point `GOOSE` at it. On macOS and Linux:
 
 ```sh
 cmake -S ../goose -B ../goose/build -DCMAKE_BUILD_TYPE=Release
@@ -80,7 +99,7 @@ root file, from a directory or from git, and imports the modules:
 
 ```goose
 import ngfx from "../";                            // the samples and tests
-import ngfx from "github.com/kaitk/goose-ngfx@v0.1.1";
+import ngfx from "github.com/kaitk/goose-ngfx@v0.1.2";
 import ngfx.ngfx_ui;                               // the ui bridge, if wanted
 ```
 
@@ -138,6 +157,22 @@ python scripts/api_check.py                     # only the API check
 A run that finds no GPU device counts as a skip. Once the native part is built, the whole
 suite takes about a minute on the RTX 4090; most of it is building the samples and
 slangc. On the M1 Pro it took 3.5 minutes, the first build of the native part included.
+
+## Linux, headless
+
+NoGraphicsAPI can't present on Linux, so `ngfx::open` fails there with "NoGraphicsAPI
+cannot present on this platform; use ngfx::open_headless", unless `GOOSE_GFX_HEADLESS=1`
+makes it open headless, as `run_tests.py` does. A machine without a qualifying Vulkan
+driver gets "no NoGraphicsAPI device ... No compatible GPU found", which names the
+extensions, and the runner counts it as a skip. In WSL, then, `run_tests.py` passes the
+API check, the Slang error tests, the thread test, and `ngfx_slang_sources`, which need
+no device, and builds every sample.
+
+```sh
+source ~/vulkansdk/1.4.363.0/setup-env.sh
+export NGFX_SLANGC=~/slang/bin/slangc GOOSE=~/goose/build/goose
+python3 scripts/run_tests.py
+```
 
 ## Run the samples
 

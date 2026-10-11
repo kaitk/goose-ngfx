@@ -35,6 +35,9 @@ set(SDL_CAMERA OFF CACHE BOOL "" FORCE)
 set(SDL_RENDER OFF CACHE BOOL "" FORCE)
 set(SDL_OPENGL OFF CACHE BOOL "" FORCE)
 set(SDL_OPENGLES OFF CACHE BOOL "" FORCE)
+# ngfx never opens a window on Linux, so SDL without X11 or Wayland will do.
+# This only skips SDL's check for them; with them, SDL builds as gfx's does.
+set(SDL_UNIX_CONSOLE_BUILD ON CACHE BOOL "" FORCE)
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/third_party/SDL" "${CMAKE_CURRENT_BINARY_DIR}/SDL" EXCLUDE_FROM_ALL)
 
 # --- the shader tools --------------------------------------------------------------
@@ -70,14 +73,14 @@ endif()
 
 # --- NoGraphicsAPI ------------------------------------------------------------------
 # Its CMakeLists needs Metal 4 (macOS 26) on Apple and Vulkan 1.4.357
-# elsewhere. It presents on Apple and Windows only.
+# elsewhere. It presents on Apple and Windows only: on Linux ngfx is headless,
+# and ngfx::open fails unless GOOSE_GFX_HEADLESS makes it open_headless.
 set(NGFX_NG "${CMAKE_CURRENT_SOURCE_DIR}/third_party/NoGraphicsAPI")
 if(NOT EXISTS "${NGFX_NG}/CMakeLists.txt")
     message(FATAL_ERROR "No NoGraphicsAPI: git submodule update --init")
 endif()
 if(NOT APPLE AND NOT WIN32)
-    message(FATAL_ERROR "NoGraphicsAPI is headless-only on ${CMAKE_SYSTEM_NAME}; ngfx needs "
-                        "Windows or macOS")
+    message(STATUS "ngfx: headless only on ${CMAKE_SYSTEM_NAME}, where NoGraphicsAPI can't present")
 endif()
 if(APPLE)
     if(NOT NGFX_METAL_CHECKED)
@@ -177,4 +180,7 @@ endif()
 if(APPLE)
     target_link_libraries(ngfx PRIVATE "-framework Metal" "-framework QuartzCore"
                           "-framework Foundation" c++ objc)
+elseif(UNIX)
+    # The program links with the C driver, which leaves out the C++ library.
+    target_link_libraries(ngfx PRIVATE stdc++)
 endif()
