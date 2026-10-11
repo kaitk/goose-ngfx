@@ -268,6 +268,12 @@ ref moves, compare both and move SDL in the same commit.
   stays failed, as above.
 - A fetched copy of the package bakes the slangc and NoGraphicsAPI paths of the machine
   that built it into the layer, as a local build does.
+- A `git worktree` of this repository starts without its submodules: run
+  `git submodule update --init` in it. Git then refuses to remove it ("working trees
+  containing submodules cannot be moved or removed"), and `git submodule deinit --all -f`
+  in the worktree, which lets `git worktree remove --force` remove it, also unregisters
+  the submodules of the main checkout, which share its config. Run
+  `git submodule update --init` there afterwards; the checked-out files stay.
 - To try the package as users get it before pushing, commit, and import it from the
   local clone by its full commit hash:
   `import ngfx from "file:///path/to/goose-ngfx@<40-hex hash>";`. Git can't fetch an
