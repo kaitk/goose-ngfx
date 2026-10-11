@@ -69,7 +69,9 @@ fn main() {
 
     for i in 3 {
         ngfx::frame();
-        let c = float4 { 0.0, (i + 1) * 0.25, 0.0, 1.0 };
+        // No channel lands halfway between two bytes, as 0.5 does (127.5), which
+        // Metal rounds up and NVIDIA's Vulkan down.
+        let c = float4 { 0.0, (i + 1) * 0.2, 0.0, 1.0 };
         ngfx::begin_screen(c);
         ngfx::end_pass();
         print("frame ", i, " cleared: ", middle());

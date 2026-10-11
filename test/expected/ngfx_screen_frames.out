@@ -2,7 +2,7 @@ cleared red: 255,0,0
 a frame later, with no pass: 255,0,0
 loaded, drawn behind the last frame's depth: 255,0,0
 and in front of it: 0,0,255
-frame 0 cleared: 0,64,0
-frame 1 cleared: 0,128,0
-frame 2 cleared: 0,191,0
+frame 0 cleared: 0,51,0
+frame 1 cleared: 0,102,0
+frame 2 cleared: 0,153,0
 same handles: true
