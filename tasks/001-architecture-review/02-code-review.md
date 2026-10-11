@@ -304,16 +304,16 @@ ngfx `samples/mini_doom.goose:1529-1557`; gfx `orig/31_mini_doom.goose:1511-1539
 
 ## Proposed follow-ups
 
-- **P1. A screen per frame in flight.** Give each slot its own screen and depth behind the
+- **P1. A screen per frame in flight** (task 003). Give each slot its own screen and depth behind the
   same handles, and skip the frame-boundary barrier when the frame's first pass draws
   only into this slot's screen. The CPU's timeline wait already orders the slot's last
   use; the task must settle whether Vulkan still needs a memory dependency for the
   clear. Costs one more screen and depth (8 MB at 1280 x 800). Flag 2, and flag 1 for
   the boundary barrier.
-- **P2. Submit the frame before acquiring.** Submit the frame's passes, then acquire,
+- **P2. Submit the frame before acquiring** (task 003). Submit the frame's passes, then acquire,
   copy, and present in a second command buffer, so only the copy waits for the image.
   Costs one submission a frame. Flag 3.
-- **P3. Three drawables on Metal**, passing `desired_swapchain_image_count = 3`, if the
+- **P3. Three drawables on Metal** (task 004), passing `desired_swapchain_image_count = 3`, if the
   benchmark shows vsync stalls. Flag 4.
 - **P4. More pending upload batches** than frames in flight, so overlapping updates in
   one frame never make the CPU wait. Flag 6.
@@ -322,12 +322,12 @@ ngfx `samples/mini_doom.goose:1529-1557`; gfx `orig/31_mini_doom.goose:1511-1539
 - **P6. Trim the hot paths**: resolve the PSO once per bind and pass, drop the run-time
   thread check from draws and `frame_data` if `main_thread_only` covers them, and flush
   in `update_texture` only when staging needs it. Flags 8 to 10.
-- **P7. ngfx_ui: one root per texture, and indexed draws.** Give per-draw `first` as the
+- **P7. ngfx_ui: one root per texture, and indexed draws** (task 007). Give per-draw `first` as the
   draw's `first_vertex` (check that `SV_VertexID` includes it on both backends), make a
   root only when the texture changes, and let `draw_indexed` take an index address and
   size from `frame_data`. The last is a surface change to `ngfx.goose` and
   `native/ngfx_api.h`. Flags 11 and 12.
-- **P8. Three frames in flight**, only if the benchmark shows ngfx's frame times vary
+- **P8. Three frames in flight** (task 004), only if the benchmark shows ngfx's frame times vary
   more than gfx's under load. Costs 16 MB of frame memory and a third command pool.
   Flag 5.
 

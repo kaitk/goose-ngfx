@@ -224,9 +224,9 @@ cited by section.
   `max_pending_batches` to a frame's flushes.
 - Transfer usage (row 5): drop the transfer flags from depth formats, which also makes
   `DEPTH24_STENCIL8` creatable on Vulkan; add a test that creates one.
-- Eager pipelines (row 7): a way to name a pipeline's target formats at creation, used by
+- Eager pipelines (row 7), task 005: a way to name a pipeline's target formats at creation, used by
   the samples.
-- Indirect commands (row 19): `draw_indirect`, `draw_indexed_indirect`, and
+- Indirect commands (row 19), task 006: `draw_indirect`, `draw_indexed_indirect`, and
   `dispatch_indirect`.
 - For 03: measure the screen copy (row 4), transfer usage on color targets (row 5), and the
   per-call handle checks (row 20).

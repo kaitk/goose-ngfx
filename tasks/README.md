@@ -44,3 +44,9 @@ tasks by number ("task 001"), not by path, so a move breaks no reference.
 Task 001 checks the architecture against NoGraphicsAPI's intent and against gfx's cost.
 Its subtasks 01 and 02 need no GPU and can run in either order. Subtask 03 writes the
 benchmark plan from both, and task 002 runs it.
+
+Tasks 003 to 007 are the design changes task 001 proposed. Task 003 lets frames overlap
+on the GPU, and should land before task 002 measures, or task 002 measures both sides of
+it. Task 004 waits for task 002's numbers. Tasks 005 to 007 change the API and can start
+at any point, but task 006 takes index ranges the way task 007 makes `draw_indexed` take
+them, so task 007 goes first.
