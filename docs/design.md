@@ -159,6 +159,14 @@ compares with the `extern` declarations in `ngfx.goose`.
   draw at `frame()`. NoGraphicsAPI gives the swapchain image only as a render target, and
   this is what makes `screenshot`, `read_pixels`, and headless mode possible. The copy
   does no sRGB conversion, as gfx's swapchain does.
+- **The screen and its depth have a texture per frame in flight behind each handle**, so
+  consecutive frames can overlap on the GPU, as gfx's do on Metal through SDL's
+  `cycle`. A pass that clears the screen or its depth as the frame's first use of it
+  switches the handle to the texture used longest ago. Any other first use (a pass that
+  loads, `index`, read-back) keeps the texture, so what a frame doesn't clear holds what
+  the last frame drew, as in gfx, and `screenshot` after `frame()` sees the last frame.
+  `index(screen())` holds only for the frame it is taken in. It costs one more screen
+  and depth: 8 MB at 1280 x 800.
 - **Pipelines are created lazily per set of target formats**, as gfx does, because
   NoGraphicsAPI fixes formats in the pipeline.
 - **The name is `ngfx`.** It reads as gfx on NoGraphicsAPI. `gfx2` would presume it
@@ -195,12 +203,34 @@ compares with the `extern` declarations in `ngfx.goose`.
 
 - **The module records barriers only where it sees both sides; the program states the
   rest** with `ngfx::barrier(before, after)`. The module orders uploads, texture
-  creation, read-back, the screen copy, each frame's first pass, and a pass drawing into
-  a target an earlier pass drew into. It cannot see what shaders reach through roots,
+  creation, read-back, the screen copy, each frame's first pass into anything but a
+  freshly switched screen, and a pass drawing into a target an earlier pass drew into. It cannot see what shaders reach through roots,
   pointers, and descriptor indices, so it records nothing for that. Independent
   dispatches and passes wait for nothing, which is what NoGraphicsAPI exists for. Hidden
   conservative barriers at every pass and dispatch were tried first: they serialized
   independent work and still missed hazards.
+- **A switched screen needs no barrier, on either backend.** The texture's last frame
+  finished before the CPU recorded this one: `ngfx_gpu_next_frame` waits on the
+  timeline for it. On Vulkan, NoGraphicsAPI signals the timeline at
+  `VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT` (`submit_commands` in `NoGraphicsAPI.cpp`), and
+  the spec gives a semaphore signal a first access scope of "all memory access
+  performed by the device" ("Semaphore Signaling"), so that frame's writes are made
+  available. A later `vkQueueSubmit2` orders all its commands after everything that
+  happened before it on the host, with a second access scope of all device access
+  ("Host Write Ordering Guarantees"), and the host wait happened before it. That covers
+  the clear's write after the old writes and the copy's read. The texture stays in
+  `VK_IMAGE_LAYOUT_GENERAL`, so there is no layout transition to order. NoGraphicsAPI's
+  own frame memory is reused the same way, after a timeline wait with no barrier
+  (`examples/cube`). On Metal, the shared event's completion covers it, as
+  NoGraphicsAPI's `barrier` notes for host visibility. `GOOSE_NGFX_SYNC=full` records the
+  frame boundary's barrier anyway.
+- **A frame is two submissions when it presents.** The passes go first, then a command
+  buffer that acquires the window's image, copies the screen into it, and presents. Only
+  that second submission waits for the image (at all commands on Vulkan, after
+  `waitForDrawable` on Metal), so the frame's passes don't. The copy's barrier orders
+  it after the passes, which come earlier in submission order: Vulkan's barriers reach
+  across submissions on a queue, and Metal's queue barriers across command buffers, as
+  `UploadQueue`'s already rely on.
 - **Barrier points are packed `i32` constants**: a NoGraphicsAPI stage mask in bits 0 to 11
   and an access mask in bits 16 to 27, with NoGraphicsAPI's own bit values, combined with
   `|`. Six common points are named (`COMPUTE_WRITE`, `VERTEX_READ`, and so on). A barrier

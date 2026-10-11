@@ -314,6 +314,11 @@ uint8_t ngfx_begin_pass(const ngfx_pass_desc* desc)
     if (!ngfx_need_device("begin_pass")) return 0;
     if (g.in_pass) return ngfx_misuse("begin_pass inside a pass: end_pass first");
     const ngfx_pass_desc& d = *desc;
+    // A frame that starts by clearing the screen draws into an instance no
+    // earlier frame still uses.
+    for (uint32 i = 0; i < 4 && d.color[i].id; ++i)
+        if (d.clear_color) renew_screen(d.color[i].id);
+    if (d.depth.id && d.clear_depth) renew_screen(d.depth.id);
     ColorAttachment colors[4];
     Targets t{};
     uint32 width = 0, height = 0;
@@ -363,14 +368,20 @@ uint8_t ngfx_begin_pass(const ngfx_pass_desc* desc)
     uint32 target_count = 0;
     for (uint32 i = 0; i < t.count; ++i) targets[target_count++] = d.color[i].id;
     if (d.depth.id) targets[target_count++] = d.depth.id;
-    bool reused = false;
+    bool reused = false, renewed = true;
     for (uint32 i = 0; i < target_count; ++i)
-        for (uint32 w : g.written_targets) reused = reused || w == targets[i];
-    if (!g.frame_barrier)
     {
-        // The frame boundary, once a frame before its first pass: the last
-        // frame's target writes, and its screen copy's read, before this
-        // frame writes targets. It covers examples/cube's depth barrier.
+        for (uint32 w : g.written_targets) reused = reused || w == targets[i];
+        renewed = renewed && renewed_screen(targets[i]);
+    }
+    if (!g.frame_barrier && (!renewed || g.full_sync))
+    {
+        // The frame boundary, once a frame before its first pass that draws
+        // into more than renewed screens: the last frame's target writes,
+        // and its screen copy's read, before this frame writes targets. It
+        // covers examples/cube's depth barrier. A renewed screen needs none:
+        // the timeline wait for its last frame orders that frame's writes
+        // and reads before this submission (docs/design.md).
         frame_boundary_barrier(commands);
         g.frame_barrier = true;
         g.written_targets.clear();

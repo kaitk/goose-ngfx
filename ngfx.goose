@@ -39,8 +39,9 @@
 // UploadQueue, which reaches the GPU before the frame's work, so
 // update_buffer takes effect for the whole frame it is called in), texture
 // creation, read-back, the copy of the screen to the window, each frame's
-// first pass after the last frame, and a pass drawing into a target an
-// earlier pass drew into. What shaders read and write through roots, the
+// first pass after the last frame (none when it clears the screen, which
+// then draws into a texture no earlier frame still uses), and a pass
+// drawing into a target an earlier pass drew into. What shaders read and write through roots, the
 // layer cannot see, so the program states it, between passes and
 // dispatches:
 //
@@ -342,7 +343,11 @@ extern "ngfx_set_title" fn set_title(title: const u8[:]);
 
 // The screen: what a frame draws into, an RGBA8 texture of the window's
 // size in pixels, with a depth texture to go with it. Both keep their
-// handles when the window resizes.
+// handles when the window resizes. A frame that starts by clearing one
+// draws into another texture behind the same handle than the frame before,
+// so that consecutive frames can overlap on the GPU; what a frame doesn't
+// clear holds what the last frame drew. index(screen()) holds for the frame
+// it is taken in.
 extern "ngfx_screen" fn screen() -> Texture;
 extern "ngfx_screen_depth" fn screen_depth() -> Texture;
 extern "ngfx_screen_size" fn screen_size_into(out: int2&);

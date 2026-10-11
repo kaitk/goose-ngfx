@@ -66,25 +66,26 @@ bool create_screen(int w, int h)
                                      .depth = 1, .mips = 1};
     const ngfx_texture_desc depth{.kind = NGFX_TEXTURE_2D, .format = NGFX_DEPTH,
                                      .usage = NGFX_DEPTH_TARGET, .width = w, .height = h, .depth = 1, .mips = 1};
-    // The handles stay; the slots get new textures, the old ones released
-    // once the frames using them finish.
+    // The handles stay; the table and the spares get new textures, the old
+    // ones released once the frames using them finish.
     const ngfx_texture_desc* descs[] = {&color, &depth};
     ngfx_texture* handles[] = {&g.screen, &g.screen_depth};
     for (int i = 0; i < 2; ++i)
     {
-        uint32 id = 0;
-        TextureSlot* fresh = nullptr;
-        if (!create_texture(*descs[i], &id, &fresh)) return false;
-        TextureSlot* old = g.textures.find(handles[i]->id);
-        if (old)
+        for (uint32 k = 0; k < frames_in_flight; ++k)
         {
-            release_texture_later(*old);
+            uint32 id = 0;
+            TextureSlot* fresh = nullptr;
+            if (!create_texture(*descs[i], &id, &fresh)) return false;
+            TextureSlot* old = k ? &g.screen_spares[i][k - 1] : g.textures.find(handles[i]->id);
+            if (!k && !old)
+            {
+                handles[i]->id = id;
+                continue;
+            }
+            if (old->placed.texture) release_texture_later(*old);
             *old = *fresh;
             g.textures.remove(id);
-        }
-        else
-        {
-            handles[i]->id = id;
         }
     }
     g.width = w;
@@ -117,6 +118,28 @@ void copy_screen(const SwapchainFrame& frame)
 } // namespace
 
 CommandBuffer* frame_commands() { return g.commands; }
+
+void renew_screen(uint32 id)
+{
+    const int i = id == g.screen.id ? 0 : id == g.screen_depth.id ? 1 : -1;
+    if (i < 0 || g.screen_used[i]) return;
+    g.screen_used[i] = true;
+    TextureSlot* current = g.textures.find(id);
+    if (!current) return;
+    // The oldest spare goes into the table, and the current instance to the
+    // back of the spares.
+    TextureSlot* spares = g.screen_spares[i];
+    TextureSlot oldest = std::move(spares[0]);
+    for (uint32 k = 1; k < frames_in_flight - 1; ++k) spares[k - 1] = std::move(spares[k]);
+    spares[frames_in_flight - 2] = std::move(*current);
+    *current = std::move(oldest);
+    g.screen_renewed[i] = true;
+}
+
+bool renewed_screen(uint32 id)
+{
+    return (id == g.screen.id && g.screen_renewed[0]) || (id == g.screen_depth.id && g.screen_renewed[1]);
+}
 
 CommandBuffer* begin_setup() { return begin_commands(g.pools[g.slot]); }
 
@@ -320,6 +343,9 @@ void ngfx_gpu_close(void)
     release_pipelines();
     if (g.copy_pso) destroy_pso(g.copy_pso);
     g.textures.each([](TextureSlot& s) { free_texture(s); });
+    for (auto& spares : g.screen_spares)
+        for (TextureSlot& s : spares)
+            if (s.placed.texture) free_texture(s);
     g.buffers.each([](BufferSlot& s) {
         if (s.chunk < 0) destroy_gpu_heap(s.own);
     });
@@ -343,19 +369,19 @@ void ngfx_gpu_close(void)
 
 void ngfx_gpu_next_frame(bool present)
 {
-    // The window's image comes last: acquired outside a pass, written by the
-    // copy, and presented by the submission that acquired it.
-    bool presenting = false;
+    // The frame's passes are submitted first, so that only the copy into
+    // the window's image waits for it: acquired in a command buffer of its
+    // own, written by the copy, and presented by that buffer's submission.
+    // The copy's barrier orders it after the passes, which are earlier in
+    // submission order.
+    submit_frame_commands(false);
     if (present && g.windowed)
     {
+        begin_frame_commands();
         const SwapchainFrame frame = acquire(g.commands);
-        if (frame.render_view)
-        {
-            copy_screen(frame);
-            presenting = true;
-        }
+        if (frame.render_view) copy_screen(frame);
+        submit_frame_commands(frame.render_view != nullptr);
     }
-    submit_frame_commands(presenting);
     // The next frame in flight's pool and memory, once the frame that last
     // used them has finished, as examples/cube waits.
     g.slot = (g.slot + 1) % frames_in_flight;
@@ -367,6 +393,8 @@ void ngfx_gpu_next_frame(bool present)
     begin_frame_commands();
     g.frame_barrier = false;
     g.written_targets.clear();
+    g.screen_used[0] = g.screen_used[1] = false;
+    g.screen_renewed[0] = g.screen_renewed[1] = false;
 }
 
 bool ngfx_gpu_resize(int w, int h) { return create_screen(w, h); }

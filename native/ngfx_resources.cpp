@@ -113,7 +113,12 @@ bool texture_format(int32 goose, Format* out)
     }
 }
 
-TextureSlot* texture_slot(ngfx_texture t) { return g.textures.get(t.id); }
+TextureSlot* texture_slot(ngfx_texture t)
+{
+    if (t.id == g.screen.id) g.screen_used[0] = true;
+    else if (t.id == g.screen_depth.id) g.screen_used[1] = true;
+    return g.textures.get(t.id);
+}
 
 RenderView* render_view(TextureSlot* s, uint32 mip, uint32 slice)
 {

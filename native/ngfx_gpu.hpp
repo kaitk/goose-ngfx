@@ -281,7 +281,14 @@ struct State
     Table<ComputeSlot> computes{"compute pipeline"};
 
     // The screen: what a frame draws into, copied to the window at frame().
+    // Each handle has an instance per frame in flight. The table holds the
+    // current one; a pass that clears the screen or its depth as the frame's
+    // first use of it switches to the spare used longest ago, which the
+    // timeline wait has already seen finish, so frames don't share it.
     ngfx_texture screen{}, screen_depth{};
+    TextureSlot screen_spares[2][frames_in_flight - 1];   // color, depth; oldest first
+    bool screen_used[2] = {};       // this frame has used the instance in the table
+    bool screen_renewed[2] = {};    // this frame switched to the instance in the table
     int width = 0, height = 0;
     PSO* copy_pso = nullptr;
     uint32 copy_samplers[2] = {};   // nearest, linear
@@ -333,10 +340,18 @@ void upload_texture(TextureSlot* s, const TextureCopyDesc& region, const void* d
 void flush_uploads();
 
 bool texture_format(int32 goose, Format* out);
+// A texture's slot; for the screen or its depth, marks the instance used by
+// this frame.
 TextureSlot* texture_slot(ngfx_texture t);
 RenderView* render_view(TextureSlot* s, uint32 mip, uint32 slice);
 // Creates a texture: placed, initialized, with its descriptors written.
 bool create_texture(const ngfx_texture_desc& desc, uint32* id, TextureSlot** out);
+// Switches `id`, the screen or its depth, to its spare instance, if this
+// frame has not used it yet.
+void renew_screen(uint32 id);
+// Whether `id` is the screen or its depth, switched to its spare by this
+// frame: no earlier frame still uses the instance it names.
+bool renewed_screen(uint32 id);
 void free_texture(TextureSlot& s);
 // Frees a copy of `s` once the GPU has finished every use recorded so far.
 void release_texture_later(const TextureSlot& s);
