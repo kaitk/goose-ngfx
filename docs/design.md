@@ -248,15 +248,18 @@ compares with the `extern` declarations in `ngfx.goose`.
   (`examples/cube`). On Metal, the shared event's completion covers it, as
   NoGraphicsAPI's `barrier` notes for host visibility. `GOOSE_NGFX_SYNC=full` records the
   frame boundary's barrier anyway.
-- **On Metal, each pass's vertex work waits for earlier passes' vertex work**, which no
-  data hazard calls for. Without it, the M1 Pro's GPU can hang with both its vertex and
-  tiling slots busy while another process (iTerm) draws with Metal, and macOS restarts
-  the GPU (`tasks/008-metal-tiler-hang.md`). The frame boundary doesn't prevent this:
-  NoGraphicsAPI maps a destination of color or depth output to the fragment stage, so
-  the next frame's vertex work may start (`metal-support.md`, "Synchronization"), and
-  a renewed screen needs no frame boundary at all. The barrier is from `Stage::vertex`
-  to `Stage::vertex | Stage::index_input` with no accesses, and it still lets vertex
-  work overlap earlier fragment work.
+- **On Metal, each pass starts with a barrier between render stages**, which no data
+  hazard calls for. Without one, the M1 Pro's GPU can hang with both its vertex and
+  tiling slots busy while another process (a Claude Code session in iTerm) draws with
+  Metal, and macOS restarts the GPU (`tasks/008-metal-tiler-hang.md`). Any barrier with
+  a render stage on both sides prevents it, whatever it orders: Vertex to Vertex,
+  Fragment to Vertex, Fragment to Fragment, and the frame boundary all do, while an
+  empty encoder and a barrier with Blit on either side don't. That points at the driver,
+  not at an order ngfx misses. The frame boundary would serve, but a frame that draws
+  only into renewed screens records none. The barrier is from `Stage::vertex` to
+  `Stage::vertex | Stage::index_input` with no accesses. It costs about 20 µs a frame
+  in `cube` headless, and no measurable time in `mini_minecraft` or `mini_doom`;
+  Fragment to Fragment costs the same.
 - **A frame is two submissions when it presents.** The passes go first, then a command
   buffer that acquires the window's image, copies the screen into it, and presents. Only
   that second submission waits for the image (at all commands on Vulkan, after

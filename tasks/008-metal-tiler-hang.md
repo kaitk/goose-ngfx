@@ -241,9 +241,88 @@ because the pass's timestamps now include the wait for the earlier frame. Window
 (the 120 Hz display) and the runs spread over 0.5 to 8.4 ms, so those runs don't
 resolve a cost this small.
 
+## Which barriers protect
+
+Every variant that prevented the hang so far records a barrier compute encoder between
+frames' render encoders, and the control that hung records none: NoGraphicsAPI's
+`barrier` returns before opening an encoder when either side maps to no Metal stages.
+These A/Bs separate the encoder from the barrier's stages. All ran in the foreground of
+a Claude Code session in iTerm, with `mini_minecraft` builds of the fixed tree in which
+a temporary `DBG_MODE` replaces the fix's barrier (`dbg_mode*.patch` and
+`dbg_raw*.patch` in `build/dbg/008/`). `raw` records
+`barrierAfterStages:beforeQueueStages:` with the given Metal stages and no visibility,
+bypassing NoGraphicsAPI's mapping.
+
+| Variant (`DBG_MODE`) | Metal stages, after to before | Hangs/runs |
+| --- | --- | --- |
+| `none` | no barrier | 2/331, 1/250, 1/265, 5/766 |
+| `vtx`, the fix | Vertex to Vertex, Fragment, Tile | 0/332 |
+| `xfer` | Blit to Blit | 2/333 |
+| `empty` | an encoder with no barrier (NoGraphicsAPI patched) | 1/331 |
+| `raw` `1,1` | Vertex to Vertex | 0/249, 0/266 |
+| `raw` `1,10000000` | Vertex to Blit | 2/251 |
+| `raw` `2,1` | Fragment to Vertex | 0/247, 0/266 |
+| `raw` `10000000,1` | Blit to Vertex | 4/251 |
+| `raw` `2,2` | Fragment to Fragment | 0/266, 0/762 |
+
+`enc.log` ran from 12:46 to 13:24, `raw.log` from 13:25 to 14:03, `raw2.log` from
+14:03 to 14:31, and `ff.log`, with `none` and Fragment to Fragment only, from 14:32 to
+15:14. The hangs cluster: 6 of `raw.log`'s 7 came between 13:28 and 13:36,
+while the maintainer was using the machine; `raw2.log` ran with the trigger mostly
+absent, so its zeros say little. Each of the first 13 hangs left a `gpuEvent` report within
+15 s of it, all signature 544 with TA slots 0 and 1 busy, one of them in substate 4,
+and the 3D and CL slots idle, whatever the variant. No report came without a logged
+hang.
+
+A hang shows a variant doesn't protect; a zero only weighs against equal rates. So
+the encoder alone doesn't protect, and neither does a barrier with Blit on either side.
+Every barrier with a render stage on both sides has none so far, including ones that
+order unrelated work (Fragment to Vertex), or whose destination leaves the next frame's
+vertex work free to start (Fragment to Fragment, and the frame boundary, under which
+frames were measured overlapping). That fits the driver treating a render-to-render
+barrier differently, not a missing order between frames.
+
+## The trigger
+
+The other sessions' Claude Code transcripts (`~/.claude-work/projects/`) put the hangs
+beside a second session, in `goose-http`, being busy. Per 10 minutes, counting the
+variants that don't protect:
+
+| Window | Hangs/runs | That session's assistant messages |
+| --- | --- | --- |
+| 13:20 to 13:40 | 7/367 | 238 |
+| 14:20 to 15:00 | 1/643 | 6 |
+| 15:10 to 15:20 | 3/62 | 38 |
+
+It doesn't hold everywhere: 13:00 to 13:20 had about 90 messages per 10 minutes and 1
+hang in about 260 runs each. That session ran CPU benchmarks as well as redrawing iTerm,
+and the transcripts don't separate the two. The maintainer saw two hangs come as that
+session showed a question's options and while typing a prompt into it.
+
+## Fragment to Fragment as the fix
+
+`mm_fix`'s tree with the fix's barrier changed to `barrier(Stage::fragment, none,
+Stage::fragment, none)`, which NoGraphicsAPI maps to Vertex, Object, Mesh, Fragment, and
+Tile to Fragment and Tile, the frame boundary's shape, with a temporary `DBG_MODE`
+selecting the old barrier or none (`ff_dbg.patch`). `ab.py` from 15:18 to 15:42, with
+`AB_STOP=none:3` (`fffix.log`): none 3/268, the current fix 0/267, Fragment to Fragment
+0/269.
+
+`cost.py` with the same switch, 8 rounds headless, 1,000 measured frames
+(`cost_ff.csv`), the median over runs of each run's median frame time:
+
+| Workload | None | Fragment to Fragment | The fix |
+| --- | --- | --- | --- |
+| `cube` | 0.140 ms | 0.159 ms | 0.159 ms |
+| `minecraft` | 0.243 ms | 0.261 ms | 0.256 ms |
+| `doom` | 0.344 ms | 0.367 ms | 0.364 ms |
+
+Fragment to Fragment costs what the fix does, so the fix stays: it has far more runs
+without a hang behind it.
+
 ## Next
 
 - Compare the barrier before every pass with the first pass in each command buffer, for
   the hang and the cost, in a program that draws several passes a frame.
 - Reduce it to a NoGraphicsAPI example (`examples/cube` with several passes, beside a
-  Metal-drawing iTerm) and report it to Apple as a driver hang.
+  Claude Code session in iTerm) and report it to Apple as a driver hang.
