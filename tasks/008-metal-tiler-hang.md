@@ -346,14 +346,37 @@ neither. `metal_barrier_test` probes overlap across submissions, but NoGraphicsA
 tested on an M3 Max with macOS 26.6.2 only (`metal-validation.md`); M1 is unverified.
 This machine is also behind on macOS: 26.7.1 and 27.0.1 are offered.
 
+## A native Metal repro
+
+`build/dbg/008/repro/repro_metal_tiler_hang.mm` (ignored by Git, not yet shared) is
+standalone Metal 4 in the form of NoGraphicsAPI's `tests/repro_metal_render_timestamps.mm`,
+with no NoGraphicsAPI, Slang, or ngfx. Each frame is one command buffer with one render
+pass that clears a color and a depth target of its frame-in-flight slot and draws 50,000
+vertex-pulled triangles (about 0.4 ms); two frames are in flight, paced by a shared
+event, with nothing between them. `--barrier vv|ff|bb` records a producer barrier in a
+compute encoder before each pass. It exits 2 when a frame doesn't finish in 10 s. It
+passes Metal API validation. Build it with
+`clang++ -std=c++20 -O2 -fno-objc-arc repro_metal_tiler_hang.mm -framework Foundation -framework Metal -o repro`.
+
+`repro_ab.py` with `--frames 4000` (1.6 s a run), from 16:03 to 16:15, in the foreground
+of a Claude Code session in iTerm, with the maintainer working (`repro.log`):
+
+| Variant | Hangs/runs |
+| --- | --- |
+| no barrier | 3/93 |
+| Vertex to Vertex | 0/94 |
+| Fragment to Fragment | 0/93 |
+| Blit to Blit | 1/93 |
+
+The first run without a barrier hung too. Every hang left a `gpuEvent` report with
+signature 544, both TA slots busy, and the 3D slots idle, as `mini_minecraft`'s do. So
+the hang needs none of ngfx, NoGraphicsAPI, or Slang.
+
 ## Next
 
 - Compare the barrier before every pass with the first pass in each command buffer, for
   the hang and the cost, in a program that draws several passes a frame.
-- Reduce it to a standalone native Metal repro, as NoGraphicsAPI's
-  `tests/repro_metal_render_timestamps.mm` is: render passes into a target per frame in
-  flight, headless, with no barrier between frames, beside a busy Claude Code session
-  in iTerm. Report it to NoGraphicsAPI's author in the form of
-  `docs/known-driver-issues.md`, and to Apple.
-- Rerun the default-against-fix A/B after updating macOS to 26.7.1, to see whether a
-  later driver fixed it.
+- Update macOS to 26.7.1 and rerun the repro (no barrier against Vertex to Vertex),
+  to see whether a later driver fixed it. Share nothing before that.
+- Then report it to NoGraphicsAPI's author in the form of `docs/known-driver-issues.md`,
+  and to Apple, with the repro and the macOS versions it hangs on.
