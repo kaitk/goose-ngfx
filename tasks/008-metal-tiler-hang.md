@@ -11,7 +11,7 @@ have each hidden it. A build of `45dd8be`, before task 003, hangs too.
 ## Acceptance criteria
 
 - [x] The hang reproduces at a known rate, at least 4 hangs in the default mode
-- [ ] One piece of `GOOSE_NGFX_SYNC=full` (before each pass, after each pass, or the
+- [x] One piece of `GOOSE_NGFX_SYNC=full` (before each pass, after each pass, or the
       frame boundary on every frame) prevents it on its own
 - [x] The barrier narrowed to its minimal stages and accesses, and `docs/design.md`
       ("Synchronization") explains why the default mode lacks it
@@ -20,9 +20,7 @@ have each hidden it. A build of `45dd8be`, before task 003, hangs too.
 - [x] Tests pass plainly and under `GOOSE_NGFX_SYNC=full`
 - [x] An interleaved A/B in which the default mode hangs and the fix doesn't
 
-The second criterion is open: the fix came from the hypothesis about the TA slots, not
-from testing each piece of the full mode, and the full mode's pieces were never tested
-under the iTerm trigger.
+Each piece prevented it on its own (see "The full mode's pieces").
 
 ## How runs are counted
 
@@ -168,11 +166,84 @@ passed, every test plainly and under `GOOSE_NGFX_SYNC=full`.
 
 The harness, both builds, and the logs are in `build/dbg/008/` (ignored by Git).
 
+## The first pass only
+
+`build/dbg/008/mm_vtx` is the fixed tree with a temporary `DBG_VTX` switch
+(`build/dbg/008/dbg_vtx.patch`): 0 records the barrier before every pass, as the fix
+does; 1 only before the first pass in each command buffer; 2 never. `ab.py` from 09:17
+to 09:42, in the foreground of a Claude Code session in iTerm, with `AB_STOP=none:5`
+(`first.log`):
+
+| Variant | Hangs/runs |
+| --- | --- |
+| never | 5/270 |
+| every pass | 0/269 |
+| first pass only | 0/272 |
+
+The median successful run took 1.57 s to 1.58 s in every variant.
+
+This doesn't compare the two placements: `mini_minecraft` draws one pass a frame
+(`begin_screen` to `end_pass`), so "every pass" and "first pass only" record the same
+commands. It confirms the fix again, 5 hangs to none. Comparing them needs a program
+with several passes a frame.
+
+## The full mode's pieces
+
+`ab.py` with `mm_dbg` (`dbb290c`, without the fix), in the foreground of a Claude Code
+session in iTerm, from 09:42 to 10:09 and from 10:43 to 10:45 (`pieces.log`). It
+stopped at 4 default hangs rather than 5:
+
+| Variant | Hangs/runs |
+| --- | --- |
+| default (`DBG_SYNC=0`) | 4/250 |
+| full barrier before each pass (`DBG_SYNC=1`) | 0/248 |
+| full barrier after each pass (`DBG_SYNC=2`) | 0/251 |
+| frame boundary every frame (`DBG_SYNC=4`) | 0/251 |
+
+The default hangs came at 09:52:36, 10:00:54, 10:01:37, and 10:03:49. The maintainer
+opened Signal at about the time of one of them, and was using a second Claude Code
+session in iTerm during another, so the trigger looks like any other process drawing
+with Metal, not one program starting.
+
+With equal rates, all four hangs would fall in default one time in 256; against any one
+piece alone, one time in 16. Each piece seems to prevent the hang on its own, the frame
+boundary included, though it doesn't stop frames overlapping (see "Frames overlap on the
+GPU"). So overlapping frames alone don't explain the hang, or the boundary's fragment-side
+wait changes the timing enough to avoid it.
+
+## The barrier's cost
+
+`build/dbg/008/cost.py` runs `bench/run_bench.py --no-build` on `mm_vtx`'s tree, one
+run at a time, alternating the three `DBG_VTX` placements in an order that reverses
+each round: 8 rounds from 10:47 to 11:18 of `cube`, `minecraft`, and `doom`, 1,000
+measured frames each after 120 of warmup, headless and windowed without vsync
+(`cost.csv`). Another session was measuring CPU work on the machine at the time. One
+headless `minecraft` run without the barrier hung (`gpuEvent` at 10:55:43) and was
+killed. All three samples draw one pass a frame, so "first pass only" matches "every
+pass" here, as expected.
+
+Headless, the median over runs of each run's median:
+
+| Workload | Variant | Frame (ms) | Range of runs | GPU (ms) | FPS |
+| --- | --- | --- | --- | --- | --- |
+| `cube` | never | 0.137 | 0.136 to 0.142 | 0.021 | 6599 |
+| `cube` | every pass | 0.159 | 0.154 to 0.160 | 0.038 | 5921 |
+| `minecraft` | never | 0.249 | 0.208 to 0.268 | 0.231 | 3136 |
+| `minecraft` | every pass | 0.254 | 0.232 to 0.264 | 0.306 | 3112 |
+| `doom` | never | 0.357 | 0.338 to 0.376 | 0.214 | 2400 |
+| `doom` | every pass | 0.362 | 0.332 to 0.392 | 0.202 | 2381 |
+
+In `cube`, which the GPU finishes fastest, the barrier costs about 20 µs a frame
+(10% of its frame rate): the next frame's vertex work no longer overlaps the last one's
+fragment work. In `minecraft` and `doom` the frame time moves 5 µs, inside the range of
+runs. The GPU time per frame rises with the barrier in `cube` and `minecraft`, probably
+because the pass's timestamps now include the wait for the earlier frame. Windowed, frames mostly take 8.3 ms
+(the 120 Hz display) and the runs spread over 0.5 to 8.4 ms, so those runs don't
+resolve a cost this small.
+
 ## Next
 
-- Try the barrier before each frame's first pass only, against the current fix.
-- Close the second criterion: under the iTerm trigger, A/B default against each piece
-  of the full mode on its own (`DBG_SYNC` 1, 2, and 4 in `build/dbg/008/mm_dbg`).
-- Measure the barrier's per-frame cost with a steadier benchmark.
+- Compare the barrier before every pass with the first pass in each command buffer, for
+  the hang and the cost, in a program that draws several passes a frame.
 - Reduce it to a NoGraphicsAPI example (`examples/cube` with several passes, beside a
   Metal-drawing iTerm) and report it to Apple as a driver hang.
