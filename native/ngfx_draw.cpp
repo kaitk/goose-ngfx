@@ -436,6 +436,12 @@ uint8_t ngfx_begin_pass(const ngfx_pass_desc* desc)
     }
     CommandBuffer* commands = frame_commands();
     if (g.full_sync) full_sync_barrier(commands);
+#if defined(__APPLE__)
+    // Not a data hazard: the M1 Pro's GPU can hang, with both vertex and tiling
+    // slots busy, when a pass's vertex work starts before an earlier pass's
+    // finishes and another process draws with Metal (tasks/008).
+    barrier(commands, Stage::vertex, Access::none, Stage::vertex | Stage::index_input, Access::none);
+#endif
     // The barriers whose two sides the module sees: the targets, named here
     // and in earlier passes. What shaders read is the program's to order.
     uint32 targets[5];

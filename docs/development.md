@@ -292,3 +292,12 @@ ref moves, compare both and move SDL in the same commit.
   local clone by its full commit hash:
   `import ngfx from "file:///path/to/goose-ngfx@<40-hex hash>";`. Git can't fetch an
   abbreviated hash.
+- The package's native part rebuilds by file time. A source restored with its old time
+  (`cp -p` from a backup) keeps the object built from the edit, and every program built
+  afterwards links it. `touch` the file.
+- On the Mac, a GPU restart leaves `gpuEvent-*.ips` in `/Library/Logs/DiagnosticReports/`
+  (later moved to `Retired/`), with the restart reason and which GPU slots were busy. In
+  zsh, `log` is a builtin: read the system log with `/usr/bin/log show`.
+- A program that opens ngfx holds macOS's `PreventUserIdleDisplaySleep`, even headless,
+  because SDL disables the screen saver. A loop of runs keeps the display awake;
+  `pmset displaysleepnow` turns it off.
