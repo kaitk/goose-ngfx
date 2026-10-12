@@ -259,7 +259,9 @@ compares with the `extern` declarations in `ngfx.goose`.
   only into renewed screens records none. The barrier is from `Stage::vertex` to
   `Stage::vertex | Stage::index_input` with no accesses. It costs about 20 µs a frame
   in `cube` headless, and no measurable time in `mini_minecraft` or `mini_doom`;
-  Fragment to Fragment costs the same.
+  Fragment to Fragment costs the same. The hang was seen on macOS 26.3.1 (25D771280a)
+  only, and a native Metal program reproduces it there without ngfx or NoGraphicsAPI.
+  It is untested on 26.4 and later, which may not need the barrier.
 - **A frame is two submissions when it presents.** The passes go first, then a command
   buffer that acquires the window's image, copies the screen into it, and presents. Only
   that second submission waits for the image (at all commands on Vulkan, after

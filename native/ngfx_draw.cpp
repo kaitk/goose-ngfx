@@ -440,7 +440,8 @@ uint8_t ngfx_begin_pass(const ngfx_pass_desc* desc)
     // Not a data hazard: without a barrier between render stages before each
     // pass, the M1 Pro's GPU can hang, with both vertex and tiling slots busy,
     // while another process draws with Metal. Any barrier with a render stage
-    // on both sides prevents it (tasks/008).
+    // on both sides prevents it (tasks/008). Seen on macOS 26.3.1 (25D771280a)
+    // only; a later macOS may not need it.
     barrier(commands, Stage::vertex, Access::none, Stage::vertex | Stage::index_input, Access::none);
 #endif
     // The barriers whose two sides the module sees: the targets, named here
