@@ -320,9 +320,40 @@ selecting the old barrier or none (`ff_dbg.patch`). `ab.py` from 15:18 to 15:42,
 Fragment to Fragment costs what the fix does, so the fix stays: it has far more runs
 without a hang behind it.
 
+## Is ngfx's frame legal NoGraphicsAPI?
+
+NoGraphicsAPI leaves synchronization to the application and means frames to overlap:
+its Metal mapping lets "independent vertex, object and mesh work overlap previous
+passes", and timestamp reads add no wait, "preserving the opportunity for overlap
+between frames" (`metal-support.md`, "Synchronization"). Against that contract, ngfx's
+frame in the default mode orders every hazard:
+
+- A frame that clears the screen draws into an instance no earlier frame in flight uses:
+  `renew_screen` rotates `frames_in_flight` instances, and the timeline wait before a
+  slot's pool reset covers the frame that last drew into the instance it takes.
+- Frame memory and command pools are reused after that same wait, as `examples/cube`
+  does; the contract asks for "completion of their submitted uses".
+- Uploads carry `UploadQueue`'s own all-commands barriers, and passes in one frame that
+  reuse a target get a barrier.
+
+So the missing barrier is no missing order. But no upstream example records this frame:
+`examples/cube` draws into one depth texture and records a depth-to-depth barrier, a
+render-to-render one, every frame; `examples/deferred_renderer` keeps one G-buffer and
+records the frame boundary's barrier every frame; and `examples/triangle` records no
+barrier but draws into the drawable, behind `submit_and_present`'s `waitForDrawable`.
+Only headless ngfx with renewed screens submits render command buffers back to back with
+neither. `metal_barrier_test` probes overlap across submissions, but NoGraphicsAPI is
+tested on an M3 Max with macOS 26.6.2 only (`metal-validation.md`); M1 is unverified.
+This machine is also behind on macOS: 26.7.1 and 27.0.1 are offered.
+
 ## Next
 
 - Compare the barrier before every pass with the first pass in each command buffer, for
   the hang and the cost, in a program that draws several passes a frame.
-- Reduce it to a NoGraphicsAPI example (`examples/cube` with several passes, beside a
-  Claude Code session in iTerm) and report it to Apple as a driver hang.
+- Reduce it to a standalone native Metal repro, as NoGraphicsAPI's
+  `tests/repro_metal_render_timestamps.mm` is: render passes into a target per frame in
+  flight, headless, with no barrier between frames, beside a busy Claude Code session
+  in iTerm. Report it to NoGraphicsAPI's author in the form of
+  `docs/known-driver-issues.md`, and to Apple.
+- Rerun the default-against-fix A/B after updating macOS to 26.7.1, to see whether a
+  later driver fixed it.
