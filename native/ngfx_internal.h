@@ -62,6 +62,10 @@ void ngfx_gpu_screen_size(int *w, int *h);
 /* Whether this is the thread that started the program. */
 bool ngfx_gpu_on_main_thread(void);
 
+/* The time the ngfx::slang compiles have taken so far, and how many there
+   were (ngfx_slang.cpp), for GOOSE_NGFX_BENCH. */
+void ngfx_slang_time(double *seconds, int *modules);
+
 /* For load_texture and save_png, which the platform half's SDL does. */
 bool ngfx_png_load(const char *path, uint8_t **rgba, int *w, int *h);
 bool ngfx_png_save(const char *path, const uint8_t *rgba, int w, int h, bool bgra);

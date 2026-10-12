@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -48,6 +49,18 @@ using std::vector;
 namespace {
 
 string blob_result;
+
+double slang_seconds = 0;
+int slang_modules = 0;
+
+// Adds one compile's time to slang_seconds, for GOOSE_NGFX_BENCH.
+struct CompileTimer {
+    std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+    ~CompileTimer() {
+        slang_seconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+        ++slang_modules;
+    }
+};
 
 string tool(const char *env, const char *configured, const char *name) {
     if (auto e = getenv(env); e && *e) return e;
@@ -382,6 +395,7 @@ string bytes(ngfx_bytes s) { return string((const char *)s.data, (size_t)s.len);
 // The module in the file at `path`, relative to the working directory, its
 // #include also looking in the file's own directory. The blob's size, or -1.
 int64_t ngfx_compile_slang_file(ngfx_bytes path) {
+    CompileTimer timer;
     blob_result.clear();
     auto p = bytes(path);
     std::error_code ec;
@@ -397,6 +411,7 @@ int64_t ngfx_compile_slang_file(ngfx_bytes path) {
 // "<slang source>:line", with #include also looking in the working
 // directory. The blob's size, or -1.
 int64_t ngfx_compile_slang(ngfx_bytes source) {
+    CompileTimer timer;
     blob_result.clear();
     Temp tmp;
     auto file = tmp("source.slang");
@@ -423,4 +438,9 @@ int64_t ngfx_slang_result(ngfx_bytes out) {
     auto n = std::min((int64_t)blob_result.size(), out.len);
     if (n > 0) memcpy(out.data, blob_result.data(), (size_t)n);
     return (int64_t)blob_result.size();
+}
+
+void ngfx_slang_time(double *seconds, int *modules) {
+    *seconds = slang_seconds;
+    *modules = slang_modules;
 }

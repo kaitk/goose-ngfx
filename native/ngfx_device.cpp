@@ -42,6 +42,39 @@ void begin_frame_commands()
     g.bound_pso = nullptr;
 }
 
+// GOOSE_NGFX_BENCH=1: the frame's stamps in this slot, which its
+// commands write and the timeline wait has seen finish.
+void collect_stamps(uint32 slot)
+{
+    read_timestamps(g.pools[slot]);
+    BenchStamps& s = g.bench_stamps[slot];
+    if (s.begin && s.passes_end) g.bench_frames.push_back(s);
+    s = {};
+}
+
+void begin_frame_stamps()
+{
+    if (g.bench) write_timestamp(g.commands, &g.bench_stamps[g.slot].begin);
+}
+
+// Per frame, on stderr: the GPU time of the frame's passes, of the screen
+// copy, and from the start of the passes to the end of the copy, in
+// microseconds; then the time ngfx::slang took.
+void print_stamps()
+{
+    const double us = get_device_caps(g.device).timestamp_period_ns / 1000.0;
+    for (const BenchStamps& s : g.bench_frames)
+    {
+        const uint64 end = s.copy_end ? s.copy_end : s.passes_end;
+        fprintf(stderr, "ngfx_bench gpu %.2f %.2f %.2f\n", double(s.passes_end - s.begin) * us,
+                s.copy_end ? double(s.copy_end - s.copy_begin) * us : 0.0, double(end - s.begin) * us);
+    }
+    double seconds = 0;
+    int modules = 0;
+    ngfx_slang_time(&seconds, &modules);
+    fprintf(stderr, "ngfx_bench slang %.1f %d\n", seconds * 1000.0, modules);
+}
+
 // Clears the screen to black and far, as gfx's starts.
 void clear_screen()
 {
@@ -271,6 +304,8 @@ bool ngfx_gpu_open(void* layer, int w, int h)
     g.windowed = layer != nullptr;
     const char* sync = getenv("GOOSE_NGFX_SYNC");
     g.full_sync = sync && !strcmp(sync, "full");
+    const char* bench = getenv("GOOSE_NGFX_BENCH");
+    g.bench = bench && !strcmp(bench, "1");
     // The screen is copied as it is, so the window's image has its format,
     // without sRGB conversion, as gfx's swapchain is.
     const DeviceInit init = create_device({.window = layer, .swapchain_format = layer ? Format::bgra8_unorm : Format::undefined});
@@ -318,6 +353,7 @@ bool ngfx_gpu_open(void* layer, int w, int h)
     }
     if (g.windowed && !(g.copy_pso = create_copy_pso())) return false;
     begin_frame_commands();
+    begin_frame_stamps();
     return create_screen(w, h);
 }
 
@@ -335,6 +371,11 @@ void ngfx_gpu_close(void)
         submit_frame_commands(false);
     }
     wait_idle(g.device);
+    if (g.bench)
+    {
+        for (uint32 i = 1; i <= frames_in_flight; ++i) collect_stamps((g.slot + i) % frames_in_flight);
+        print_stamps();
+    }
     run_pending(g.timeline.value);
     if (g.uploads) g.uploads->destroy();
     delete g.uploads;
@@ -374,23 +415,32 @@ void ngfx_gpu_next_frame(bool present)
     // own, written by the copy, and presented by that buffer's submission.
     // The copy's barrier orders it after the passes, which are earlier in
     // submission order.
+    BenchStamps& stamps = g.bench_stamps[g.slot];
+    if (g.bench) write_timestamp(g.commands, &stamps.passes_end);
     submit_frame_commands(false);
     if (present && g.windowed)
     {
         begin_frame_commands();
         const SwapchainFrame frame = acquire(g.commands);
-        if (frame.render_view) copy_screen(frame);
+        if (frame.render_view)
+        {
+            if (g.bench) write_timestamp(g.commands, &stamps.copy_begin);
+            copy_screen(frame);
+            if (g.bench) write_timestamp(g.commands, &stamps.copy_end);
+        }
         submit_frame_commands(frame.render_view != nullptr);
     }
     // The next frame in flight's pool and memory, once the frame that last
     // used them has finished, as examples/cube waits.
     g.slot = (g.slot + 1) % frames_in_flight;
     if (g.pool_values[g.slot]) wait_timeline({.semaphore = g.timeline.semaphore, .value = g.pool_values[g.slot]});
+    if (g.bench) collect_stamps(g.slot);
     reset_command_pool(g.pools[g.slot]);
     g.frame_data[g.slot]->reset();
     g.deletes->tick();
     g.uploads->reclaim();
     begin_frame_commands();
+    begin_frame_stamps();
     g.frame_barrier = false;
     g.written_targets.clear();
     g.screen_used[0] = g.screen_used[1] = false;

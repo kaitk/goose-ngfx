@@ -159,6 +159,13 @@ struct SamplerSlot
 };
 
 // One region of a texture written by an upload: a mip of one slice.
+// GOOSE_NGFX_BENCH=1: one frame's GPU timestamps, zero where none was
+// written. A headless frame has no copy.
+struct BenchStamps
+{
+    uint64 begin = 0, passes_end = 0, copy_begin = 0, copy_end = 0;
+};
+
 struct TextureUpload
 {
     Texture* texture = nullptr;
@@ -310,6 +317,11 @@ struct State
     // GOOSE_NGFX_SYNC=full: a full barrier around every pass and dispatch, to
     // find a missing program barrier by comparing output.
     bool full_sync = false;
+    // GOOSE_NGFX_BENCH=1: each slot's stamps are written by its frame's
+    // commands and read once the timeline wait has seen them finish.
+    bool bench = false;
+    BenchStamps bench_stamps[frames_in_flight];
+    std::vector<BenchStamps> bench_frames;
 };
 
 extern State g;

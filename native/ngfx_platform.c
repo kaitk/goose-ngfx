@@ -9,6 +9,7 @@
 #include <SDL3/SDL.h>
 #if defined(__APPLE__)
 #include <SDL3/SDL_metal.h>
+#include <objc/message.h>
 #endif
 
 #include <stdarg.h>
@@ -150,7 +151,13 @@ static void ngfx_seed_mouse(void) {
 static void *ngfx_layer(void) {
 #if defined(__APPLE__)
     ngfx.metal_view = SDL_Metal_CreateView(ngfx.window);
-    return ngfx.metal_view ? SDL_Metal_GetLayer(ngfx.metal_view) : NULL;
+    void *layer = ngfx.metal_view ? SDL_Metal_GetLayer(ngfx.metal_view) : NULL;
+    /* For the benchmark, as gfx's NO_VSYNC flag. NoGraphicsAPI leaves the
+       layer's displaySyncEnabled alone; on Vulkan it fixes FIFO. */
+    const char *no_vsync = SDL_getenv("GOOSE_NGFX_NO_VSYNC");
+    if (layer && no_vsync && SDL_atoi(no_vsync))
+        ((void (*)(void *, SEL, bool))objc_msgSend)(layer, sel_registerName("setDisplaySyncEnabled:"), false);
+    return layer;
 #elif defined(_WIN32)
     return SDL_GetPointerProperty(SDL_GetWindowProperties(ngfx.window),
                                   SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
