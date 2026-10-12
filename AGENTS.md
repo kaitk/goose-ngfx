@@ -30,6 +30,9 @@ Don't name this repository's maintainer in docs, Markdown, code, or comments; wr
   miscompiles, or lacks a hook this library needs, reduce it to a minimal case, record
   it in `docs/goose-findings.md`, and work around it here. Tell the maintainer about
   blockers.
+- Every finding names the Goose commit it was found on, the pin at the time. When one
+  lacks it, recover it from this repository's history: the pin in the commit that added
+  the entry.
 - Write Goose the way Goose's own `samples/` and `stdlib/` do, and a package the way
   `goose_gfx` is one.
 - `ngfx.goose` and `native/ngfx_api.h` describe one boundary. Change both together,
