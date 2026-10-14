@@ -7,8 +7,9 @@ synchronization, and its utility library is optional. ngfx owns several of those
 policies itself. For each policy, decide whether ngfx follows the intent, deviates for a
 reason that still holds, or should change.
 
-Rows 11 to 22 are intents the sources state that the first ten rows missed. Verdicts were
-reached by reading the code at `26acba1`; nothing was built or run.
+This is a historical audit of `26acba1`, based on code inspection without builds or
+GPU runs. The table describes that revision. The follow-up list records later changes;
+[the design](../../docs/design.md) describes current behavior.
 
 | # | ngfx choice | Tension with intent | Verdict |
 |---|---|---|---|
@@ -218,7 +219,7 @@ cited by section.
     buffer, which no sample needs beyond. Add ranges only when a program wants GPU-computed
     indices.
 
-## Proposed follow-ups
+## Follow-ups
 
 - [x] Upload batching (row 2): flush `update_texture` only on overlap, and size
   `max_pending_batches` to a frame's flushes. Done in `7c04663`.
@@ -226,9 +227,9 @@ cited by section.
   `DEPTH24_STENCIL8` creatable on Vulkan; add a test that creates one. Done in `70969e1`.
   Metal has no 24-bit depth, so there `DEPTH24_STENCIL8` falls back to 32-bit float depth
   with stencil.
-- Eager pipelines (row 7), task 005: a way to name a pipeline's target formats at creation, used by
-  the samples.
-- Indirect commands (row 19), task 006: `draw_indirect`, `draw_indexed_indirect`, and
+- [x] Pipeline preparation (row 7), task 005: `prepare(pipeline, PassDesc)` creates a
+  pipeline for a pass's formats before drawing. The samples use `prepare_screen`.
+- [x] Indirect commands (row 19), task 006: `draw_indirect`, `draw_indexed_indirect`, and
   `dispatch_indirect`.
 - For 03: measure the screen copy (row 4), transfer usage on color targets (row 5), and the
   per-call handle checks (row 20).

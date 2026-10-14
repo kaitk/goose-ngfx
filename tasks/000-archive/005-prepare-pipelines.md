@@ -2,6 +2,9 @@
 
 Status: done
 
+Historical task: the problem statement describes behavior before the change.
+The results record the implementation; see [the API](../../docs/api.md) for current behavior.
+
 ngfx creates a pipeline at its first draw into a new set of target formats
 (`native/ngfx_draw.cpp:51-76`), so the driver's shader compile happens mid-frame.
 NoGraphicsAPI's examples create every pipeline before the loop. Task 001's subtask 01 has

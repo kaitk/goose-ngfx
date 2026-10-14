@@ -41,12 +41,11 @@ tasks by number ("task 001"), not by path, so a move breaks no reference.
 
 ## Order
 
-Task 001 checks the architecture against NoGraphicsAPI's intent and against gfx's cost.
-Its subtasks 01 and 02 need no GPU and can run in either order. Subtask 03 writes the
-benchmark plan from both, and task 002 runs it.
+Task 001 completed the architecture audits and benchmark plan. It remains here because
+task 002 builds on that plan. Task 002 has a harness, workloads, and GPU timestamps;
+its full measurements and design conclusions remain open.
 
-Tasks 003 to 007 are the design changes task 001 proposed. Task 003 lets frames overlap
-on the GPU, and should land before task 002 measures, or task 002 measures both sides of
-it. Task 004 waits for task 002's numbers. Tasks 005 to 007 change the API and can start
-at any point, but task 006 takes index ranges the way task 007 makes `draw_indexed` take
-them, so task 007 goes first.
+Task 003 implements overlapping frames but still needs before/after measurements from
+task 002. Task 004 waits for task 002's pacing results. Tasks 005 to 007 are implemented
+and archived. Task 008 implements the Metal hang workaround but still needs validation
+on a later macOS version, a multipass comparison, and upstream reports.

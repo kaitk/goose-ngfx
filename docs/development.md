@@ -6,8 +6,8 @@ toolchains differ.
 
 ## Toolchain
 
-Everywhere, the Goose compiler is built from `aardappel/goose` at the pin in `README.md`,
-and named by `GOOSE` or found on `PATH`. Python runs the scripts.
+Build the Goose compiler from `aardappel/goose` at the [README pin](../README.md#pins),
+and name it with `GOOSE` or put it on `PATH`. Python runs the scripts.
 
 macOS, tested on an M1 Pro (2026-10-11):
 
@@ -16,7 +16,7 @@ macOS, tested on an M1 Pro (2026-10-11):
 | macOS | | 26.3.1 |
 | Xcode, with its Metal toolchain | `xcodebuild -downloadComponent MetalToolchain` adds the toolchain | 26.4: Apple clang 21, `metal` 32023.883 |
 | CMake | Homebrew | 4.4.4 |
-| slangc | `../slang/bin/slangc`, beside this repository, from Slang's `macos-aarch64` release | 2026.18.3 (2026.18.2 or later) |
+| slangc | Slang's `macos-aarch64` release | 2026.18.3 (2026.18.2 or later) |
 | Python | `python3` | 3.14.8 |
 
 The Mac needs no Vulkan SDK or `spirv-val`: NoGraphicsAPI's backend there is Metal, and
@@ -32,7 +32,7 @@ Windows 11, tested on an RTX 4090 (driver 617.42):
 | Visual Studio Build Tools | `C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools` | 2026 (18): clang-cl 22.1.3, MSVC 19.51 |
 | CMake, Ninja | the Build Tools' own, which Goose finds by itself | CMake 4.3.1 |
 | Vulkan SDK | `C:\VulkanSDK\1.4.363.0`, which also has `spirv-val` | 1.4.363 (1.4.357 or later) |
-| slangc | `..\slang\bin\slangc.exe`, beside this repository, from Slang's `windows-x86_64` release | 2026.18.3 (2026.18.2 or later) |
+| slangc | Slang's `windows-x86_64` release | 2026.18.3 (2026.18.2 or later) |
 | Python | `PATH` | 3.14.6 |
 
 Linux, tested in WSL 2 on Ubuntu 26.04 (2026-10-11), headless only:
@@ -88,7 +88,7 @@ On Windows:
 ```powershell
 cmake -S ..\goose -B ..\goose\build -G "Visual Studio 18 2026"
 cmake --build ..\goose\build --config Release
-$env:GOOSE = "..\goose\build\Release\goose.exe"
+$env:GOOSE = (Resolve-Path "..\goose\build\Release\goose.exe").Path
 ```
 
 ## How a program is built
@@ -149,8 +149,8 @@ python scripts/api_check.py                     # only the API check
   are found there. A test passes when it exits with 0 and prints
   `test/expected/<name>.out`. A test with `expected/<name>.aborts` must fail instead, at
   compile time or when it runs, and print each line of `expected/<name>.stderr`. Each
-  passing test runs again under `GOOSE_NGFX_SYNC=full`, which must not change its
-  output.
+  successful test without an `.aborts` expectation runs again under
+  `GOOSE_NGFX_SYNC=full`, which must not change its output.
 - Each sample, built with `goose build` into `build/bin/`, run from `samples/` with the
   arguments in `samples/data/<name>.args`. Its screenshot lands in `samples/` (ignored by
   Git).
@@ -169,6 +169,20 @@ $env:VK_KHRONOS_VALIDATION_REPORT_FLAGS = "error,warn"
 $env:VK_KHRONOS_VALIDATION_VALIDATE_SYNC = "true"
 python scripts/run_tests.py
 ```
+
+## Benchmark
+
+Run `python bench/run_bench.py --help` for workload, condition, and repetition options.
+Set `GOOSE` to a compiler built from the README pin; use `--goose-src` if the harness
+cannot locate its source checkout. The harness instruments copies of both sets of
+samples under `build/bench/src/`, builds executables with `goose build`, and writes
+per-frame CSV and run summaries under `build/bench/<time>/`. It alternates ngfx,
+ngfx with full synchronization, and gfx. Generated sources and results are ignored.
+
+Task 001's subtask 03 defines the measurement plan; task 002 tracks the remaining
+validation and results. The harness is implemented, but a complete cross-platform
+comparison has not been recorded. The Metal hang experiments in task 008 are narrower
+measurements and do not establish performance parity with gfx.
 
 ## Linux, headless
 
@@ -222,6 +236,8 @@ executable's once built.
 | `GOOSE` | `run_tests.py` | The Goose compiler |
 | `GOOSE_GFX_HEADLESS` | the layer | `ngfx::open` opens no window, as `open_headless` |
 | `GOOSE_NGFX_SYNC=full` | the layer | A full barrier around every pass and dispatch, to expose a missing `ngfx::barrier` |
+| `GOOSE_NGFX_BENCH=1` | the layer | Report GPU frame timestamps and Slang compilation time on stderr at close, for the benchmark harness |
+| `GOOSE_NGFX_NO_VSYNC=1` | the layer | Disable presentation vsync for benchmark runs |
 | `NGFX_SLANGC` | the package's CMake, `ngfx::slang` | The slangc to build with and to run, in place of the one CMake found |
 | `NGFX_SPIRV_VAL` | `ngfx::slang` | The `spirv-val` to run; empty skips validation |
 | `NGFX_NOGRAPHICSAPI` | `ngfx::slang` | NoGraphicsAPI's source tree, for `<NoGraphicsAPI/shader.slang>` |
@@ -239,8 +255,9 @@ git -C ../goose fetch
 git -C ../goose log --oneline <pin>..origin/master
 ```
 
-On the Mac the clone is `../goose-upstream`, and its remote is named `upstream`, so
-the range there is `<pin>..upstream/master`.
+The commands assume a sibling clone named `goose` whose `origin` is
+`https://github.com/aardappel/goose.git`. Substitute your clone's path and upstream
+remote name if they differ.
 
 Then rebuild the compiler, run `python scripts/run_tests.py`, and update the pin in
 `README.md`, in the table and in both quick starts. Things that tend to break:
@@ -263,9 +280,8 @@ ref moves, compare both and move SDL in the same commit.
 
 ## Traps
 
-- The agent's Bash tool turns `\\` into `\` before the shell sees it, even inside a
-  quoted heredoc, so `"\\n"` written through it reaches the file as a line break. Edit
-  files with the file tools when the text has backslashes.
+- On Windows, Python's default text encoding can be the system code page. Scripts
+  editing UTF-8 documentation must specify `encoding="utf-8"` for reads and writes.
 - Programs print CRLF on Windows. `run_tests.py` compares with line endings normalized.
 - `goose run` prints its compile summary on stderr; a test's stdout is the program's
   alone.

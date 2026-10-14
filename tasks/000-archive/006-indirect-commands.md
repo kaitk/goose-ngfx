@@ -2,6 +2,9 @@
 
 Status: done
 
+Historical task: the problem statement describes behavior before the change.
+The results record the implementation; see [the API](../../docs/api.md) for current behavior.
+
 NoGraphicsAPI has `draw_indirect`, `draw_indexed_indirect`, and `dispatch_indirect`
 (`NoGraphicsAPI.hpp:817-821`), which take a GPU pointer to their arguments. ngfx has
 none, so a program can't write GPU-driven culling. Task 001's subtask 01 has the details

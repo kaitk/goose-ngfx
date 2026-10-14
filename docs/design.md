@@ -43,32 +43,23 @@ a CMake project for the native part), and each compiler change has a counterpart
 
 ## Status
 
-Built and tested on Windows 11 with Vulkan: an NVIDIA RTX 4090, driver 617.42, Vulkan SDK
-1.4.363, slangc 2026.18.2, clang-cl 22.1.3 and MSVC 19.51, and Goose `2de6d1d`. The API
-check, every test (plainly and under `GOOSE_NGFX_SYNC=full`, run in the compiler and
-built), and every sample (built) pass, headless. At Goose `4f23f22`, the README's quick
-start, from fresh clones and an empty `GOOSE_HOME`, passes the API check, every test, and
-every sample, with clang-cl and, tests built, with MSVC.
+See the [README status](../README.md#status) for platform coverage and
+[development toolchains](development.md#toolchain) for tested versions.
 
-Built and tested on macOS 26.3 with Metal 4: an Apple M1 Pro, Xcode 26.4 (Apple clang 21),
-slangc 2026.18.3, and Goose `2de6d1d`. The API check, every test (plainly and under
-`GOOSE_NGFX_SYNC=full`, run in the compiler and built), and every sample (built) pass,
-headless. A program outside the repository that imports the package from git runs in
-the compiler and built, and the to-do list and Mini Minecraft, built that way, print
-what they print here. At Goose `4f23f22`, the README's quick start, from fresh clones
-and an empty `~/.goose`, passes the API check, every test, and every sample.
+On Metal, headless screenshots of the cube, Mini Doom, and the to-do list matched
+Goose's gfx originals byte for byte in historical package validation.
+Mini Minecraft differed in 48 isolated pixels of nearest-sampled leaves, where Slang
+and Goose's MSL round a texture coordinate differently.
 
-On the Mac, headless, the cube's, Mini Doom's, and the to-do list's screenshots are
-byte-identical to those of Goose's gfx originals. Mini Minecraft's differs in 48
-isolated pixels of nearest-sampled leaves, where Slang and Goose's MSL round a texture
-coordinate differently. In the fork, it differed in 36 such pixels on Metal, and in one
-pixel by one step on Vulkan.
-
-| Platform | State |
-| --- | --- |
-| Windows, Vulkan 1.4 | Tested here on an RTX 4090, headless and windowed. |
-| macOS 26, Metal 4 | Tested here on an M1 Pro, headless, and windowed in a short run. |
-| Linux, Vulkan 1.4 | Headless only. Builds and runs in WSL (Ubuntu 26.04, gcc 15), where no driver has `VK_EXT_descriptor_heap`: the tests that need no device pass, and the rest skip. Untried on a GPU. |
+Task 001's architecture audits support the allocation, offscreen-screen, and
+application-barrier policies, with deliberate deviations for gfx-compatible behavior.
+Their follow-ups added pipeline preparation, indirect commands, indexed ui draws,
+color-only transfer usage, larger upload batching, direct staging of buffer data,
+hot-path trims, and overlapping screen frames.
+Performance parity with gfx remains unverified: task 002 runs the benchmark, task 003
+still needs its before/after frame times, and task 004 waits for the pacing results.
+The Metal driver workaround and its measured cost are described under
+[Synchronization](#synchronization).
 
 ## What it costs
 
@@ -251,9 +242,9 @@ compares with the `extern` declarations in `ngfx.goose`.
   frame boundary's barrier anyway.
 - **On Metal, each pass starts with a barrier between render stages**, which no data
   hazard calls for. Without one, the M1 Pro's GPU can hang with both its vertex and
-  tiling slots busy while another process (a Claude Code session in iTerm) draws with
-  Metal, and macOS restarts the GPU (`tasks/008-metal-tiler-hang.md`). Any barrier with
-  a render stage on both sides prevents it, whatever it orders: Vertex to Vertex,
+  tiling slots busy while another process draws with Metal, and macOS restarts the
+  GPU (task 008). Any barrier with a render stage on both sides prevents it, whatever
+  it orders: Vertex to Vertex,
   Fragment to Vertex, Fragment to Fragment, and the frame boundary all do, while an
   empty encoder and a barrier with Blit on either side don't. That points at the driver,
   not at an order ngfx misses. The frame boundary would serve, but a frame that draws
@@ -314,8 +305,8 @@ compares with the `extern` declarations in `ngfx.goose`.
 - Run the tests on Linux on a GPU: Mesa RADV 26.2 or later, or NVIDIA's driver. Mesa's
   lavapipe lacks `VK_EXT_descriptor_heap` and `VK_KHR_shader_untyped_pointers`, even on
   Mesa's main branch, so no CPU driver can stand in.
-- Cache compiled Slang modules, keyed on the source, if the 0.2 s per module at startup
-  starts to matter.
+- Cache compiled Slang modules, keyed on the source, if the roughly 0.2 s per module
+  at startup on the Windows test machine starts to matter.
 - Uploads on a copy queue, waiting on `UploadQueue::flush()`'s timeline point, would stop
   a frame with uploads from serializing against the previous frame. It needs no surface
   change, and waits for a machine whose queues are independent engines.

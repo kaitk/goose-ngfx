@@ -2,6 +2,9 @@
 
 Status: done
 
+Historical task: the problem statement describes behavior before the change.
+The results record the implementation; see [the API](../../docs/api.md) for current behavior.
+
 `ngfx_ui.goose` makes 4 externs per draw where gfx's ui makes 3, and a 40-byte root
 per draw, though only `first` and the texture change between draws
 (`ngfx_ui.goose:137-141`). Its draws aren't indexed, because ngfx's `draw_indexed` takes

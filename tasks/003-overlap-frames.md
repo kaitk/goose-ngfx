@@ -2,12 +2,12 @@
 
 Status: in-progress
 
-ngfx draws every frame into one screen texture. The barrier at each frame's first
-pass orders it after the previous frame's passes and screen copy
-(`native/ngfx_draw.cpp:155-160`). The frame's passes also share the submission that waits
-for the swapchain image, so none can start until the image is free. On Metal, gfx's frames
-overlap where ngfx's can't. Task 001's subtask 02 has the details as flags 1 to 3,
-proposals P1 and P2.
+The screen textures now rotate per frame in flight, and the frame's passes are submitted
+before acquiring the swapchain image. These changes remove the dependencies identified
+in task 001's subtask 02, flags 1 to 3 and proposals P1 and P2. Correctness validation
+passes; task 002 still needs to measure the before/after frame times.
+
+The implementation addresses two sources of serialization in the earlier design:
 
 1. Give each frame in flight its own screen and depth texture behind the same handles.
    Skip the frame-boundary barrier when the frame's first pass draws only into this

@@ -35,7 +35,7 @@ None open.
 ### Shaders in an outside language compile at run time
 
 Found on `bab8b6f`. Status: open; planned upstream as build steps, a tool a package runs
-while the program compiles, not built on `46356c2` (`docs/design/packages.md` §11)
+while the program compiles, not built on `46356c2` ([Goose package design, §11](https://github.com/aardappel/goose/blob/46356c2/docs/design/packages.md#11-deferred-and-open))
 
 `embed_shader` compiles GLSL into the program while Goose compiles it, with Goose's
 built-in SPIR-V compiler. Nothing lets a package do the same for another language.
@@ -47,6 +47,6 @@ program calls them, which costs:
 - A Slang error aborts the program when it runs, at `<slang source>:line`, rather than
   failing the Goose compile at the line in the program.
 - The machine running the program needs slangc, `spirv-val` if validation is wanted, and
-  NoGraphicsAPI's shader headers (`docs/development.md`).
+  NoGraphicsAPI's shader headers ([toolchain setup](development.md#toolchain)).
 - Each module takes about 0.2 s to compile on the Windows test machine, every run. A
   cache keyed on the source would remove that if it starts to matter.

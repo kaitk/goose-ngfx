@@ -1,13 +1,12 @@
 # 001: Review the architecture
 
-Status: in-progress
+Status: done
 
-ngfx matches gfx on correctness (screenshots and tests), but it has no performance
-numbers. Nobody has checked the policies ngfx's module owns against what NoGraphicsAPI is
-meant to be. This task answers whether the architecture in
-[docs/design.md](../../docs/design.md) holds up on two counts. First, it should use
-NoGraphicsAPI the way Sebastian Aaltonen intends. Second, as a replacement for gfx, it
-should cost no more CPU or GPU time per frame.
+The audits reviewed ngfx's policies against NoGraphicsAPI's intent and gfx's CPU and
+GPU work. Their conclusions and implemented changes are summarized in
+[the design status](../../docs/design.md#status). Correctness is tested; performance
+parity remains a measurement question for task 002, under the plan in subtask 03.
+This completed task stays outside the archive while task 002 builds on that plan.
 
 Subtasks:
 
@@ -23,16 +22,15 @@ Running the benchmark is a later task. Subtask 03 creates it.
   `AGENTS.md`. Its `AGENTS.md` says to review all code for performance.
 - Sebastian Aaltonen's "No Graphics API" blog post, which the README says it implements.
   The post isn't stored here. Cite it by section.
-- The earlier work:
-  - `../goose-nogfx-prototype/AGENTS.md`, which says to mirror the examples and
-    `upload_queue.cpp` "barrier for barrier".
-  - `docs/design/ngfx.md` in the fork `../goose-nogfx`, commits `cc98116` and `c87a4a3`.
-- The fork's `docs/nogfx/sync-analysis.md` and `docs/nogfx/mips-research.md`. Both were
-  deleted. Recover them from that repository's history, or from the goose-nogfx Claude
-  session transcripts, if they were never committed.
+- Historical design in the Goose fork:
+  [`docs/design/ngfx.md` at `cc98116`](https://github.com/kaitk/goose/blob/cc98116/docs/design/ngfx.md)
+  and [`c87a4a3`](https://github.com/kaitk/goose/blob/c87a4a3/docs/design/ngfx.md).
+  The audit also used prototype notes and recovered synchronization and mip research
+  that are not tracked here. Current decisions are in `docs/design.md`; those local
+  working files are not prerequisites for setup or further work.
 
 ## Acceptance criteria
 
-- [ ] Subtasks 01, 02, and 03 are done
-- [ ] One summary in `docs/design.md` says whether the architecture holds, and names
+- [x] Subtasks 01, 02, and 03 are done
+- [x] One summary in `docs/design.md` says whether the architecture holds, and names
       each decision this task changed

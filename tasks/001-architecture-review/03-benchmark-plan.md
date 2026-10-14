@@ -2,8 +2,10 @@
 
 Status: done
 
-Write a benchmark specification that another session can run without making further
-decisions. Don't run it in this task. Subtasks 01 and 02 say what is worth measuring.
+This plan defines the comparison task 002 must validate. The harness and workloads
+were implemented in `fbcf949`; the full measurement campaign remains open. References
+to proposed instrumentation below describe the plan, not missing implementation.
+[Development](../../docs/development.md#benchmark) documents the current harness.
 
 ## Acceptance criteria
 
@@ -37,15 +39,15 @@ decisions. Don't run it in this task. Subtasks 01 and 02 say what is worth measu
 | `draws` | new, `bench/draws_ngfx.goose` | new, `bench/draws_gfx.goose` | N small draws a frame, N = 1k, 10k, 50k |
 | `uploads` | new, `bench/uploads_ngfx.goose` | new, `bench/uploads_gfx.goose` | K `update_buffer` and `update_texture` calls a frame, K = 1, 4, 16 |
 
-The originals come from the Goose pin in `README.md` (`../goose-upstream` on the Mac),
+The originals come from the Goose pin in `README.md` (use the compiler's source checkout),
 and gfx from `goose_gfx` at the ref in that pin's `src/blessed.txt`.
 
-- **Sample changes:** each sample pair takes `--frames N` already. The benchmark adds
-  `--bench`, which prints per-frame timings and changes nothing else. This is an
-  addition to the ports, not a change to what they print. Add the same flag to a
-  scratch copy of each gfx original in `bench/originals/`. That copy is regenerated from
-  the pin by the harness, never edited by hand, so Goose stays unchanged.
-- **Minecraft rebuild frames:** `--bench-mine` scripts one block removal every 10 frames,
+- **Sample changes:** each sample pair takes `--frames N` already. The harness instruments
+  scratch copies of both sides under `build/bench/src/`, adding per-frame timing
+  reports without editing the originals. These copies are regenerated from the pin
+  and the working tree, never edited by hand.
+- **Minecraft rebuild frames:** the `minecraft_mine` workload sets `GOOSE_BENCH_MINE=1`
+  to script one block removal every 10 frames,
   so chunk rebuilds (subtask 02 flags 6 and 7) are measured separately from steady state.
 - **`draws`:** each draw is a quad with a root in `frame_data` holding a transform and a
   color, against gfx's per-draw uniform push. It runs four variants: ngfx vertex pulling
@@ -65,7 +67,8 @@ and gfx from `goose_gfx` at the ref in that pin's `src/blessed.txt`.
 | Throughput | Frames per second over the measured window, without vsync only |
 
 GPU timestamps: NoGraphicsAPI has `write_timestamp(commands, cpu_destination, stage)`,
-and `UploadQueue` already reads timestamps back. ngfx exposes none.
+and `UploadQueue` already reads timestamps back. ngfx has no public timestamp-query
+API; its benchmark instrumentation is internal.
 
 - **ngfx:** add timestamps behind `GOOSE_NGFX_BENCH=1`, read back one frame later, at the
   start and end of each frame's commands and around the screen copy. The screen copy
@@ -103,10 +106,11 @@ and `UploadQueue` already reads timestamps back. ngfx exposes none.
 ## Harness
 
 `bench/run_bench.py`, run as `python bench/run_bench.py [workload ...]` with `GOOSE` set as
-for the tests. It copies the gfx originals from the Goose pin into `bench/originals/` and
-applies the `--bench` patch. It builds each program with `goose build` into `build/bench/`
-and writes raw per-frame CSV to `build/bench/` and a summary table to stdout. Results go
-into the task that runs it, with the commands that produced them. `bench/` follows
+for the tests. It copies the gfx originals from the Goose pin into `build/bench/src/` and
+applies timing instrumentation to both sides. It builds each program with `goose build`
+into `build/bench/bin/` and writes raw per-frame CSV to `build/bench/<time>/` and a
+summary table to stdout. Results go into task 002, with the commands that produced
+them. `bench/` follows
 goose-http's: a script, its inputs, and a results file, with nothing generated checked in.
 
 ## What would show the architecture doesn't hold

@@ -11,9 +11,9 @@
 - Substantial doc drafts and requested prose reviews:
   `.claude/skills/google-style/SKILL.md`; other writing follows "Writing" below
 - The language: Goose's `docs/tutorial.md`, `goose_spec.md`, `stdlib.md`, and
-  `packages.md`, in a clone of `aardappel/goose` at the pin (`../goose` on the
-  maintainer's Windows machine; on the Mac, `../goose-upstream`, since `../goose` there
-  is the old fork). Read the tutorial before writing Goose; check the spec before
+  `packages.md`, in a clone of `aardappel/goose` at the pin. The setup examples use
+  `../goose`; substitute your clone's path. Read the tutorial before writing Goose;
+  check the spec before
   assuming a feature exists. gfx, audio, and ui are in `aardappel/goose_gfx`.
 
 Follow the recorded decisions; if a change contradicts one, update the doc in the same

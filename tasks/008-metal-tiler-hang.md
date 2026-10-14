@@ -2,6 +2,12 @@
 
 Status: in-progress
 
+The Metal workaround is implemented and tested. The historical investigation below
+records the evidence, including experiments without the workaround. Multipass testing,
+validation on a later macOS version, and reports to upstream and Apple remain open.
+Temporary debug harnesses, logs, patches, and the native Metal repro were not committed;
+their names below identify experiment provenance, not files available from this clone.
+
 On the M1 Pro, headless `mini_minecraft --frames 40` sometimes never finishes. The
 process blocks in `ngfx_gpu_next_frame`, in `wait_timeline`, and macOS restarts the GPU
 with a "progress timeout" (`gpuEvent-*.ips`, signature 544): both TA slots (vertex and
@@ -19,6 +25,9 @@ have each hidden it. A build of `45dd8be`, before task 003, hangs too.
       driver
 - [x] Tests pass plainly and under `GOOSE_NGFX_SYNC=full`
 - [x] An interleaved A/B in which the default mode hangs and the fix doesn't
+- [ ] Compare every-pass and first-pass barriers in a program with multiple passes
+- [ ] Rerun the native repro on a later macOS version before sharing it
+- [ ] Report the repro and affected OS versions to NoGraphicsAPI's author and Apple
 
 Each piece prevented it on its own (see "The full mode's pieces").
 
@@ -161,15 +170,15 @@ both ways, over 120 and 125 successful runs. A 40-frame run is mostly startup, t
 and `GOOSE_NGFX_BENCH=1`'s GPU times vary tenfold between runs of the same build, so
 the barrier's per-frame cost isn't measured.
 
-`GOOSE=../goose-upstream/build/goose python3 scripts/run_tests.py` with the fix: 36
+`python3 scripts/run_tests.py`, with `GOOSE` set to the compiler at the pin and the fix: 36
 passed, every test plainly and under `GOOSE_NGFX_SYNC=full`.
 
-The harness, both builds, and the logs are in `build/dbg/008/` (ignored by Git).
+The temporary harness, builds, and logs were kept outside version control.
 
 ## The first pass only
 
-`build/dbg/008/mm_vtx` is the fixed tree with a temporary `DBG_VTX` switch
-(`build/dbg/008/dbg_vtx.patch`): 0 records the barrier before every pass, as the fix
+The temporary `mm_vtx` build uses the fixed tree with a `DBG_VTX` switch
+(`dbg_vtx.patch`): 0 records the barrier before every pass, as the fix
 does; 1 only before the first pass in each command buffer; 2 never. `ab.py` from 09:17
 to 09:42, in the foreground of a Claude Code session in iTerm, with `AB_STOP=none:5`
 (`first.log`):
@@ -213,7 +222,7 @@ wait changes the timing enough to avoid it.
 
 ## The barrier's cost
 
-`build/dbg/008/cost.py` runs `bench/run_bench.py --no-build` on `mm_vtx`'s tree, one
+The temporary `cost.py` harness runs `bench/run_bench.py --no-build` on `mm_vtx`'s tree, one
 run at a time, alternating the three `DBG_VTX` placements in an order that reverses
 each round: 8 rounds from 10:47 to 11:18 of `cube`, `minecraft`, and `doom`, 1,000
 measured frames each after 120 of warmup, headless and windowed without vsync
@@ -249,7 +258,7 @@ frames' render encoders, and the control that hung records none: NoGraphicsAPI's
 These A/Bs separate the encoder from the barrier's stages. All ran in the foreground of
 a Claude Code session in iTerm, with `mini_minecraft` builds of the fixed tree in which
 a temporary `DBG_MODE` replaces the fix's barrier (`dbg_mode*.patch` and
-`dbg_raw*.patch` in `build/dbg/008/`). `raw` records
+temporary `dbg_raw*.patch` files). `raw` records
 `barrierAfterStages:beforeQueueStages:` with the given Metal stages and no visibility,
 bypassing NoGraphicsAPI's mapping.
 
@@ -284,8 +293,8 @@ barrier differently, not a missing order between frames.
 
 ## The trigger
 
-The other sessions' Claude Code transcripts (`~/.claude-work/projects/`) put the hangs
-beside a second session, in `goose-http`, being busy. Per 10 minutes, counting the
+Historical session transcripts correlate the hangs with a second Claude Code session
+in iTerm running CPU benchmarks and redrawing the terminal. Per 10 minutes, counting the
 variants that don't protect:
 
 | Window | Hangs/runs | That session's assistant messages |
@@ -344,11 +353,11 @@ barrier but draws into the drawable, behind `submit_and_present`'s `waitForDrawa
 Only headless ngfx with renewed screens submits render command buffers back to back with
 neither. `metal_barrier_test` probes overlap across submissions, but NoGraphicsAPI is
 tested on an M3 Max with macOS 26.6.2 only (`metal-validation.md`); M1 is unverified.
-This machine is also behind on macOS: 26.7.1 and 27.0.1 are offered.
+The investigation used macOS 26.3.1; later OS versions were not tested.
 
 ## A native Metal repro
 
-`build/dbg/008/repro/repro_metal_tiler_hang.mm` (ignored by Git, not yet shared) is
+The untracked `repro_metal_tiler_hang.mm` (not yet shared) is
 standalone Metal 4 in the form of NoGraphicsAPI's `tests/repro_metal_render_timestamps.mm`,
 with no NoGraphicsAPI, Slang, or ngfx. Each frame is one command buffer with one render
 pass that clears a color and a depth target of its frame-in-flight slot and draws 50,000
@@ -376,7 +385,7 @@ the hang needs none of ngfx, NoGraphicsAPI, or Slang.
 
 - Compare the barrier before every pass with the first pass in each command buffer, for
   the hang and the cost, in a program that draws several passes a frame.
-- Update macOS to 26.7.1 and rerun the repro (no barrier against Vertex to Vertex),
+- Rerun the repro on a later macOS version (no barrier against Vertex to Vertex),
   to see whether a later driver fixed it. Share nothing before that.
 - Then report it to NoGraphicsAPI's author in the form of `docs/known-driver-issues.md`,
   and to Apple, with the repro and the macOS versions it hangs on.

@@ -14,12 +14,15 @@ traffic, command buffers, submissions, and waits.
       with file:line references to both
 - [x] Every place where ngfx does more than gfx for the same sample is flagged, with a
       verdict: inherent to NoGraphicsAPI, a cost of a decision in subtask 01, or a fix
-- [x] The fixes are listed as follow-up tasks; none is made in this subtask (proposed in
-      [Proposed follow-ups](#proposed-follow-ups), to be filed once reviewed)
+- [x] The fixes are listed as [follow-ups](#follow-ups); implementation is separate
+      from this review
 
 ## Method
 
-Read on 2026-10-11, with no GPU runs. References use these roots:
+This historical review was written on 2026-10-11 without GPU runs.
+File and line references describe the snapshot recorded in `4200991`; follow-ups
+record later changes.
+See [the design](../../docs/design.md) for current behavior. References use these roots:
 
 | Prefix | Path |
 | --- | --- |
@@ -27,7 +30,7 @@ Read on 2026-10-11, with no GPU runs. References use these roots:
 | `nga/` | `third_party/NoGraphicsAPI/` (the backend in `src/`, the utility in `utility/src/`) |
 | `gfx/` | `~/.goose/pkg/github.com/aardappel/goose_gfx/v1/` |
 | `sdl/` | `gfx/third_party/SDL/src/gpu/`, the SDL that gfx links |
-| `orig/` | `../goose-upstream/samples/`, Goose's originals at `4f23f22` |
+| `orig/` | `samples/` in Goose at `4f23f22` |
 
 A steady-state frame is one with no resize, no new ui atlas, no chunk rebuild, and no
 screenshot. "Externs" counts the graphics calls a frame makes across the extern
@@ -223,19 +226,19 @@ ngfx `samples/mini_doom.goose:1529-1557`; gfx `orig/31_mini_doom.goose:1511-1539
    into another texture, and on Metal, whose hazard tracking sees no shared resource,
    consecutive frames can overlap. On Vulkan, SDL's layout barriers order against all
    earlier commands too, so both serialize there. Verdict: cost of the decision "the
-   screen is an offscreen RGBA8 texture", with a fix ([P1](#proposed-follow-ups)).
+   screen is an offscreen RGBA8 texture", with a fix ([P1](#follow-ups)).
 3. **The whole frame waits for the window's image.** The frame's passes share the
    submission that waits for the image at all commands (Vulkan) or after
    `waitForDrawable` (Metal); gfx waits at color output. Verdict: inherent to
-   NoGraphicsAPI's `submit_and_present`, with a fix in ngfx ([P2](#proposed-follow-ups)).
+   NoGraphicsAPI's `submit_and_present`, with a fix in ngfx ([P2](#follow-ups)).
 4. **Two drawables on Metal**, where gfx has 3. With vsync, `nextDrawable` blocks sooner
    and a slow frame can't be absorbed. Verdict: a fix, NoGraphicsAPI's default unchanged
-   ([P3](#proposed-follow-ups)).
+   ([P3](#follow-ups)).
 5. **One frame queued, where gfx allows two.** ngfx waits for N-1 after submitting N
    (`native/ngfx_device.cpp:327-328`). This lowers latency and leaves less slack for a
    CPU spike. Verdict: inherent to NoGraphicsAPI's examples (`frames_in_flight` 2 in
    `native/ngfx_gpu.hpp:199`, as `nga/examples/cube/cube.cpp:160-161`). Change it only
-   if the benchmark shows a cost ([P8](#proposed-follow-ups)).
+   if the benchmark shows a cost ([P8](#follow-ups)).
 6. **A frame with uploads gets a second submission and two all-commands barriers**
    (`nga/utility/src/upload_queue.cpp:153`, `:211`), so its uploads wait for all earlier
    work, including the previous frame, and everything after waits for them. In the
@@ -245,33 +248,33 @@ ngfx `samples/mini_doom.goose:1529-1557`; gfx `orig/31_mini_doom.goose:1511-1539
    makes the CPU wait in `UploadQueue::begin` (`nga/utility/src/upload_queue.cpp:147-151`).
    Verdict: the barriers are the cost of the decision "`update_buffer` takes effect for
    the whole frame", and the copy queue in design.md's Open list addresses them; the
-   CPU wait is a fix ([P4](#proposed-follow-ups)).
+   CPU wait is a fix ([P4](#follow-ups)).
 7. **`create_buffer` copies the whole buffer once more than gfx.** It builds a zeroed
    `std::vector` of the full size, copies the data in, then copies it to staging
    (`native/ngfx_resources.cpp:297-299`); gfx writes data and zeros straight into the
    mapped transfer buffer (`gfx/src/gfx/gfx_resources.c:115-118`). This runs on Mini
-   Minecraft's rebuild frames. Verdict: a fix ([P5](#proposed-follow-ups)).
+   Minecraft's rebuild frames. Verdict: a fix ([P5](#follow-ups)).
 8. **`update_texture` flushes uploads before and after** (`native/ngfx_resources.cpp:410-412`):
    one or two extra submissions a call, where gfx records the copy in the frame. Only
    startup and new ui atlases hit it. Verdict: a fix, low priority
-   ([P6](#proposed-follow-ups)).
+   ([P6](#follow-ups)).
 9. **The pipeline is looked up at every draw** (`native/ngfx_draw.cpp:84-88`), where gfx
    looks it up at `bind` (`gfx/src/gfx/gfx_draw.c:137`). Verdict: a fix
-   ([P6](#proposed-follow-ups)).
+   ([P6](#follow-ups)).
 10. **Every extern checks the thread** (`native/ngfx_platform.c:83-92`); gfx checks only
     that the device is open (`gfx/src/gfx/gfx_device.c:44-47`). Verdict: cost of the
     decision to reject calls from a `thread_fn` (design.md, "Why a separate repository"),
     whose compile-time half is `main_thread_only`; the run-time check could leave the
-    draw path ([P6](#proposed-follow-ups)).
+    draw path ([P6](#follow-ups)).
 11. **ngfx_ui makes one more extern and one 40-byte root per draw** (`ngfx_ui.goose:137-141`)
     than gfx's texture bind (`gfx/ui.goose:1932`). Only `first` and the texture change
     between draws. Verdict: cost of the decision "drawing takes roots and GPU addresses",
-    with a fix ([P7](#proposed-follow-ups)).
+    with a fix ([P7](#follow-ups)).
 12. **ngfx_ui shades one vertex per index.** Its draws aren't indexed, because
     `draw_indexed` takes a `Buffer` and the frame's indices are frame memory; a quad
     costs 6 vertex invocations instead of about 4. NoGraphicsAPI's `draw_indexed` takes
     any `GpuRange` (`nga/src/NoGraphicsAPI.cpp:3832`). Verdict: cost of ngfx's surface,
-    with a fix ([P7](#proposed-follow-ups)).
+    with a fix ([P7](#follow-ups)).
 
 ### Where ngfx does less
 
@@ -302,16 +305,17 @@ ngfx `samples/mini_doom.goose:1529-1557`; gfx `orig/31_mini_doom.goose:1511-1539
   adds both transfer bits to every image (`sdl/vulkan/SDL_gpu_vulkan.c:5748`), and
   Metal has no such usage.
 
-## Proposed follow-ups
+## Follow-ups
 
-- **P1. A screen per frame in flight** (task 003). Give each slot its own screen and depth behind the
-  same handles, and skip the frame-boundary barrier when the frame's first pass draws
-  only into this slot's screen. The CPU's timeline wait already orders the slot's last
-  use; the task must settle whether Vulkan still needs a memory dependency for the
-  clear. Costs one more screen and depth (8 MB at 1280 x 800). Flag 2, and flag 1 for
-  the boundary barrier.
-- **P2. Submit the frame before acquiring** (task 003). Submit the frame's passes, then acquire,
-  copy, and present in a second command buffer, so only the copy waits for the image.
+- [x] **P1. A screen per frame in flight** (task 003, implemented; measurement pending).
+  Each slot has its own screen and depth behind the same handles. A frame starting
+  with a clear of renewed screens skips the frame-boundary barrier: the CPU timeline
+  wait orders the slot's last use on both backends, including Vulkan's memory
+  dependency. The reasoning is in the design's Synchronization section. This costs
+  one more screen and depth (8 MB at 1280 x 800). Flags 1 and 2.
+- [x] **P2. Submit the frame before acquiring** (task 003, implemented). The passes are
+  submitted first, then acquire, copy, and present use a second command buffer, so only
+  the copy waits for the image.
   Costs one submission a frame. Flag 3.
 - **P3. Three drawables on Metal** (task 004), passing `desired_swapchain_image_count = 3`, if the
   benchmark shows vsync stalls. Flag 4.
@@ -323,11 +327,10 @@ ngfx `samples/mini_doom.goose:1529-1557`; gfx `orig/31_mini_doom.goose:1511-1539
   thread check from draws and `frame_data` if `main_thread_only` covers them, and flush
   in `update_texture` only when staging needs it. Flags 8 to 10. Done: the flushes in
   `7c04663`, the rest in `329e970`.
-- **P7. ngfx_ui: one root per texture, and indexed draws** (task 007). Give per-draw `first` as the
-  draw's `first_vertex` (check that `SV_VertexID` includes it on both backends), make a
-  root only when the texture changes, and let `draw_indexed` take an index address and
-  size from `frame_data`. The last is a surface change to `ngfx.goose` and
-  `native/ngfx_api.h`. Flags 11 and 12.
+- [x] **P7. ngfx_ui: one root per texture, and indexed draws** (task 007).
+  `draw_indexed` takes an index range from frame memory. `SV_VertexID` includes
+  `first_vertex` on Metal but excludes it on Vulkan, so the bridge uses indexed draws
+  with `first_index` instead. Flags 11 and 12.
 - **P8. Three frames in flight** (task 004), only if the benchmark shows ngfx's frame times vary
   more than gfx's under load. Costs 16 MB of frame memory and a third command pool.
   Flag 5.
