@@ -301,14 +301,12 @@ fn close() {
     close_raw();
 }
 
-extern "ngfx_error" fn error_into(out: u8[:]) -> i64;
+extern "ngfx_error" fn error_into(out: u8[>..]&);
 extern "ngfx_misuse_count" fn misuse_count() -> i64;
 // Why the last call that failed did, as text.
 fn error() -> u8[>..] {
     var text: u8[>..] = [];
-    text.resize(1024, 0);
-    let n = error_into(text);
-    text.resize(min(n, 1024));
+    error_into(text);
     return text;
 }
 // Aborts, saying why, if the program has used ngfx wrongly.
@@ -316,13 +314,11 @@ fn check() {
     if misuse_count() > 0 { abort(str("ngfx: ", error())); }
 }
 
-extern "ngfx_driver" fn driver_into(out: u8[:]) -> i64;
+extern "ngfx_driver" fn driver_into(out: u8[>..]&);
 // NoGraphicsAPI's backend: "metal" or "vulkan".
 fn driver() -> u8[>..] {
     var name: u8[>..] = [];
-    name.resize(64, 0);
-    let n = driver_into(name);
-    name.resize(min(n, 64));
+    driver_into(name);
     return name;
 }
 
@@ -460,21 +456,17 @@ extern "ngfx_text_input" fn text_input(on: bool);
 // The scancode of the key of that name, as key_down takes it, 0 for none;
 // and the name the platform has for a key, as a label to show.
 extern "ngfx_scancode" fn scancode(name: const u8[:]) -> i64;
-extern "ngfx_key_name" fn key_name_into(scancode: i64, out: u8[:]) -> i64;
+extern "ngfx_key_name" fn key_name_into(scancode: i64, out: u8[>..]&);
 fn key_name(scancode: i64) -> u8[>..] {
     var name: u8[>..] = [];
-    let n = key_name_into(scancode, name);
-    name.resize(n, 0);
     key_name_into(scancode, name);
     return name;
 }
 
 // The system clipboard's text; headless, ngfx's own.
-extern "ngfx_clipboard" fn clipboard_into(out: u8[:]) -> i64;
+extern "ngfx_clipboard" fn clipboard_into(out: u8[>..]&);
 fn clipboard() -> u8[>..] {
     var text: u8[>..] = [];
-    let n = clipboard_into(text);
-    text.resize(n, 0);
     clipboard_into(text);
     return text;
 }
@@ -661,17 +653,13 @@ extern "ngfx_release_sampler" fn release(s: Sampler);
 // "<slang source>:line". Its #include also looks in the working directory.
 // Compiling needs slangc (docs/development.md) but no device, and takes a
 // fraction of a second, so compile each module once, before the frame loop.
-extern "ngfx_compile_slang" fn compile_slang(source: const u8[:]) -> i64;
-extern "ngfx_compile_slang_file" fn compile_slang_file(path: const u8[:]) -> i64;
-extern "ngfx_slang_result" fn slang_result_into(out: u8[:]) -> i64;
-fn slang_result(size: i64) -> u8[>..] {
-    if size < 0 { abort(str("ngfx::slang: ", error())); }
+extern "ngfx_compile_slang" fn compile_slang(source: const u8[:], out: u8[>..]&) -> bool;
+extern "ngfx_compile_slang_file" fn compile_slang_file(path: const u8[:], out: u8[>..]&) -> bool;
+fn slang(source: const u8[:]) -> u8[>..] {
     var blob: u8[>..] = [];
-    blob.resize(size, 0);
-    slang_result_into(blob);
+    if !compile_slang(source, blob) { abort(str("ngfx::slang: ", error())); }
     return blob;
 }
-fn slang(source: const u8[:]) -> u8[>..] { slang_result(compile_slang(source)) }
 // A module written in parts, such as code shared by several modules: the
 // parts are its lines in order.
 fn slang(a: const u8[:], b: const u8[:]) -> u8[>..] { slang(str(a, "\n", b)) }
@@ -680,7 +668,11 @@ fn slang(a: const u8[:], b: const u8[:], c: const u8[:]) -> u8[>..] {
 }
 // The module in the file at `path`, relative to the working directory; its
 // #include also looks in the file's own directory.
-fn slang_file(path: const u8[:]) -> u8[>..] { slang_result(compile_slang_file(path)) }
+fn slang_file(path: const u8[:]) -> u8[>..] {
+    var blob: u8[>..] = [];
+    if !compile_slang_file(path, blob) { abort(str("ngfx::slang: ", error())); }
+    return blob;
+}
 
 // --- pipelines ---------------------------------------------------------------
 

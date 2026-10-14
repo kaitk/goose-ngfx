@@ -127,7 +127,8 @@ has it built in.
 `goose run` compiles the program with TinyCC in the compiler's process, at `-O1`.
 `goose build` writes C, compiles it at `-O2`, and links it with each package's native
 part into an executable beside the source, or at `-o`. Neither needs a CMake build of
-this repository; `cmake -S . -B build` builds only the native part, to work on it.
+this repository; `cmake -S . -B build` builds only the native part, to work on it. That
+build takes `goose.h` from the checkout the compiler in `GOOSE` was built from.
 
 ## Test
 

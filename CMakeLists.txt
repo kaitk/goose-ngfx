@@ -157,6 +157,21 @@ add_library(ngfx STATIC
     "${NGFX_OUT}/ngfx_mips_code.h"
 )
 target_include_directories(ngfx PRIVATE native "${NGFX_OUT}")
+# goose.h: the Goose compiler's wrapper project puts it on the include path.
+# A build of this project alone takes it from the checkout the compiler in
+# GOOSE was built from, which the compiler can't write out
+# (docs/goose-findings.md).
+if(PROJECT_IS_TOP_LEVEL)
+    get_filename_component(goose_bin "$ENV{GOOSE}" DIRECTORY)
+    find_path(NGFX_GOOSE_H_DIR goose.h NO_DEFAULT_PATH
+              PATHS "${goose_bin}/../src/runtime" "${goose_bin}/../../src/runtime"
+                    "${goose_bin}/../../../src/runtime")
+    if(NOT NGFX_GOOSE_H_DIR)
+        message(FATAL_ERROR "No goose.h beside the compiler in GOOSE ($ENV{GOOSE}): set GOOSE, "
+                            "or NGFX_GOOSE_H_DIR to a Goose checkout's src/runtime")
+    endif()
+    target_include_directories(ngfx PRIVATE "${NGFX_GOOSE_H_DIR}")
+endif()
 target_link_libraries(ngfx PRIVATE SDL3::SDL3-static NoGraphicsAPI::NoGraphicsAPI NoGraphicsAPIUtility::uploads
                       NoGraphicsAPIUtility::textures NoGraphicsAPIUtility::allocators)
 target_compile_definitions(ngfx PRIVATE

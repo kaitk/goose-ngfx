@@ -12,14 +12,17 @@
    The conventions are gfx's (src/gfx/gfx_api.h): what crosses is what
    `extern fn` can pass; structs are packed and declared again in
    ngfx.goose with the same fields; handles are one u32 with a
-   generation, 0 never valid; failures outside the program return false or a
-   zero handle with the reason in ngfx_error, and misuse is counted for
-   the Goose side to abort on. */
+   generation, 0 never valid; text and blobs of a size the program can't
+   know come back appended to a `u8[>..]&`, a gs_rref; failures outside the
+   program return false or a zero handle with the reason in ngfx_error, and
+   misuse is counted for the Goose side to abort on. */
 
 #ifndef NGFX_API_H
 #define NGFX_API_H
 
 #include <stdint.h>
+
+#include "goose.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -107,9 +110,9 @@ typedef struct {
     X(uint8_t, ngfx_open, (ngfx_bytes title, int64_t width, int64_t height, int64_t flags)) \
     X(uint8_t, ngfx_open_headless, (int64_t width, int64_t height, int64_t flags)) \
     X(void, ngfx_close, (void)) \
-    X(int64_t, ngfx_error, (ngfx_bytes out)) \
+    X(void, ngfx_error, (gs_rref out)) \
     X(int64_t, ngfx_misuse_count, (void)) \
-    X(int64_t, ngfx_driver, (ngfx_bytes out)) \
+    X(void, ngfx_driver, (gs_rref out)) \
     X(uint8_t, ngfx_frame, (void)) \
     X(void, ngfx_quit, (void)) \
     X(void, ngfx_flush, (void)) \
@@ -144,8 +147,8 @@ typedef struct {
     X(void, ngfx_text_input, (uint8_t on)) \
     X(uint8_t, ngfx_inject_text, (ngfx_bytes text)) \
     X(int64_t, ngfx_scancode, (ngfx_bytes name)) \
-    X(int64_t, ngfx_key_name, (int64_t scancode, ngfx_bytes out)) \
-    X(int64_t, ngfx_clipboard, (ngfx_bytes out)) \
+    X(void, ngfx_key_name, (int64_t scancode, gs_rref out)) \
+    X(void, ngfx_clipboard, (gs_rref out)) \
     X(uint8_t, ngfx_set_clipboard, (ngfx_bytes text)) \
     /* Buffers: GPU memory with an address, and this frame's data. */ \
     X(ngfx_buffer, ngfx_create_buffer, (int64_t size, ngfx_bytes data)) \
@@ -171,9 +174,8 @@ typedef struct {
     X(uint32_t, ngfx_sampler_index, (ngfx_sampler s)) \
     X(void, ngfx_release_sampler, (ngfx_sampler s)) \
     /* Slang modules compiled into blobs (ngfx_slang.cpp, ngfx_blob.h). */ \
-    X(int64_t, ngfx_compile_slang, (ngfx_bytes source)) \
-    X(int64_t, ngfx_compile_slang_file, (ngfx_bytes path)) \
-    X(int64_t, ngfx_slang_result, (ngfx_bytes out)) \
+    X(uint8_t, ngfx_compile_slang, (ngfx_bytes source, gs_rref out)) \
+    X(uint8_t, ngfx_compile_slang_file, (ngfx_bytes path, gs_rref out)) \
     /* Pipelines, from those blobs. */ \
     X(ngfx_pipeline, ngfx_create_pipeline, (ngfx_bytes shader, ngfx_bytes vertex, ngfx_bytes fragment, const ngfx_pipeline_desc *desc)) \
     X(void, ngfx_release_pipeline, (ngfx_pipeline p)) \

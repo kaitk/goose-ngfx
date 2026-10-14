@@ -97,12 +97,7 @@ bool ngfx_need_device(const char *what) {
 
 const char *ngfx_error_text(void) { return ngfx.error; }
 
-int64_t ngfx_error(ngfx_bytes out) {
-    int64_t n = (int64_t)strlen(ngfx.error);
-    int64_t k = n < out.len ? n : out.len;
-    if (k > 0) memcpy(out.data, ngfx.error, (size_t)k);
-    return n;
-}
+void ngfx_error(gs_rref out) { gs_bld_append(out, ngfx.error, (int64_t)strlen(ngfx.error)); }
 
 int64_t ngfx_misuse_count(void) { return ngfx.misuse; }
 
@@ -265,12 +260,9 @@ void ngfx_close(void) {
     ngfx.misuse = misuse;
 }
 
-int64_t ngfx_driver(ngfx_bytes out) {
+void ngfx_driver(gs_rref out) {
     const char *name = ngfx.open ? ngfx_gpu_driver() : "";
-    int64_t n = (int64_t)strlen(name);
-    int64_t k = n < out.len ? n : out.len;
-    if (k > 0) memcpy(out.data, name, (size_t)k);
-    return n;
+    gs_bld_append(out, name, (int64_t)strlen(name));
 }
 
 void ngfx_set_title(ngfx_bytes title) {
@@ -756,28 +748,22 @@ int64_t ngfx_scancode(ngfx_bytes name) {
     return ngfx_find_scancode(ngfx_cstr(name, buf, sizeof buf));
 }
 
-int64_t ngfx_key_name(int64_t scancode, ngfx_bytes out) {
+void ngfx_key_name(int64_t scancode, gs_rref out) {
     if (scancode < 0 || scancode >= SDL_SCANCODE_COUNT) {
         ngfx_misuse("key_name: no scancode %lld", (long long)scancode);
-        return 0;
+        return;
     }
     const char *name = SDL_GetScancodeName((SDL_Scancode)scancode);
-    int64_t n = (int64_t)strlen(name);
-    int64_t k = n < out.len ? n : out.len;
-    if (k > 0) memcpy(out.data, name, (size_t)k);
-    return n;
+    gs_bld_append(out, name, (int64_t)strlen(name));
 }
 
 /* Headless, ngfx keeps a clipboard of its own, which keeps tests and the
    programs a test runner drives off the system's. */
-int64_t ngfx_clipboard(ngfx_bytes out) {
-    if (!ngfx_need_device("clipboard")) return 0;
+void ngfx_clipboard(gs_rref out) {
+    if (!ngfx_need_device("clipboard")) return;
     char *text = ngfx.window ? SDL_GetClipboardText() : ngfx.clipboard;
-    int64_t n = text ? (int64_t)strlen(text) : 0;
-    int64_t k = n < out.len ? n : out.len;
-    if (k > 0) memcpy(out.data, text, (size_t)k);
+    if (text) gs_bld_append(out, text, (int64_t)strlen(text));
     if (ngfx.window) SDL_free(text);
-    return n;
 }
 
 uint8_t ngfx_set_clipboard(ngfx_bytes text) {

@@ -6,7 +6,8 @@ and then passes garbage, which is why it is checked rather than trusted.
 
 The naming convention the check relies on: the Goose struct `TextureDesc` is
 `ngfx_texture_desc` in C, a slice `const Buffer[:]` is `ngfx_buffer_slice`,
-`u8[:]` is `ngfx_bytes`, and `T&` is a pointer.
+`u8[:]` is `ngfx_bytes`, a builder `u8[>..]&` is goose.h's `gs_rref`, and `T&` is
+a pointer.
 
 Run by scripts/run_tests.py, or alone: python scripts/api_check.py
 """
@@ -36,6 +37,8 @@ def c_of(goose_type, prefix):
     t = goose_type.strip()
     if t.startswith("const "):
         t = t[len("const "):].strip()
+    if t == "u8[>..]&":
+        return "gs_rref"
     if t.endswith("&"):
         return c_of(t[:-1], prefix) + " *"
     if t == "u8[:]":

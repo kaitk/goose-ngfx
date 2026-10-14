@@ -31,6 +31,23 @@ None open.
 
 ## Feature requests
 
+### The compiler can't write out `goose.h`
+
+Found on `46356c2`. Status: open
+
+C that appends to a `u8[>..]&` needs `goose.h` (spec §7.10). The compiler embeds the
+header and writes it only into the build directories of the native parts it builds
+itself (`src/native.h`, `WriteGooseHeader`). A build of a package's CMake project on its
+own, to work on the C, has no way to ask for it, as `goose --emit-runtime runtime.c`
+asks for the runtime. Expected: `goose --emit-header goose.h`, or the header installed
+beside the stdlib.
+
+    > goose --emit-header goose.h
+    unknown option: --emit-header
+
+Workaround: `CMakeLists.txt` looks for `src/runtime/goose.h` up to three directories
+above the compiler in `GOOSE`, which finds it beside a compiler built in its checkout.
+
 ### Shaders in an outside language compile at run time
 
 Found on `bab8b6f`. Status: open, by design upstream; unchanged on `46356c2`. Goose's

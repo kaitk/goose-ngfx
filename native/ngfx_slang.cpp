@@ -13,8 +13,7 @@
 //                        <NoGraphicsAPIUtility/shader_types.h>
 //
 // The blob always holds SPIR-V, and a metallib on a Mac, where that is the
-// backend a program runs on. The last blob compiled is kept here until the
-// Goose side copies it out (ngfx_slang_result).
+// backend a program runs on.
 
 #include <algorithm>
 #include <atomic>
@@ -46,8 +45,6 @@ using std::string_view;
 using std::vector;
 
 namespace {
-
-string blob_result;
 
 double slang_seconds = 0;
 int slang_modules = 0;
@@ -280,10 +277,10 @@ uint32_t stage_of(const string &name) {
 
 bool fail(const string &msg) { return ngfx_fail("%s", msg.c_str()); }
 
-// The blob for the Slang module in the file at `path` into blob_result,
+// The blob for the Slang module in the file at `path`, appended to `result`,
 // with #include also looking in `includedir`; or false with ngfx_error set,
 // to "path:line: error: message" when slangc says where.
-bool compile_file(const string &path, const string &includedir) {
+bool compile_file(const string &path, const string &includedir, gs_rref result) {
     Temp tmp;
     auto slangc = slangc_path();
     vector<string> common = { slangc, path, "-fvk-use-c-layout", "-matrix-layout-row-major" };
@@ -379,11 +376,12 @@ bool compile_file(const string &path, const string &includedir) {
     h.spirv_size = (uint32_t)spv.size();
     h.metallib_offset = (uint32_t)align(h.spirv_offset + spv.size());
     h.metallib_size = (uint32_t)metallib.size();
-    blob_result.assign(h.metallib_offset + metallib.size(), '\0');
-    memcpy(blob_result.data(), &h, sizeof h);
-    memcpy(blob_result.data() + sizeof h, entries.data(), entries.size() * sizeof(ngfx_blob_entry));
-    memcpy(blob_result.data() + h.spirv_offset, spv.data(), spv.size());
-    memcpy(blob_result.data() + h.metallib_offset, metallib.data(), metallib.size());
+    string blob(h.metallib_offset + metallib.size(), '\0');
+    memcpy(blob.data(), &h, sizeof h);
+    memcpy(blob.data() + sizeof h, entries.data(), entries.size() * sizeof(ngfx_blob_entry));
+    memcpy(blob.data() + h.spirv_offset, spv.data(), spv.size());
+    memcpy(blob.data() + h.metallib_offset, metallib.data(), metallib.size());
+    gs_bld_append(result, blob.data(), (int64_t)blob.size());
     return true;
 }
 
@@ -392,51 +390,37 @@ string bytes(ngfx_bytes s) { return string((const char *)s.data, (size_t)s.len);
 }  // namespace
 
 // The module in the file at `path`, relative to the working directory, its
-// #include also looking in the file's own directory. The blob's size, or -1.
-int64_t ngfx_compile_slang_file(ngfx_bytes path) {
+// #include also looking in the file's own directory.
+uint8_t ngfx_compile_slang_file(ngfx_bytes path, gs_rref out) {
     CompileTimer timer;
-    blob_result.clear();
     auto p = bytes(path);
     std::error_code ec;
-    if (!std::filesystem::is_regular_file(p, ec)) {
-        ngfx_fail("cannot open Slang file: %s", p.c_str());
-        return -1;
-    }
+    if (!std::filesystem::is_regular_file(p, ec))
+        return ngfx_fail("cannot open Slang file: %s", p.c_str());
     auto dir = std::filesystem::absolute(p, ec).parent_path().string();
-    return compile_file(p, dir) ? (int64_t)blob_result.size() : -1;
+    return compile_file(p, dir, out);
 }
 
 // The module `source`, compiled from a file of its own, its errors given at
 // "<slang source>:line", with #include also looking in the working
-// directory. The blob's size, or -1.
-int64_t ngfx_compile_slang(ngfx_bytes source) {
+// directory.
+uint8_t ngfx_compile_slang(ngfx_bytes source, gs_rref out) {
     CompileTimer timer;
-    blob_result.clear();
     Temp tmp;
     auto file = tmp("source.slang");
     FILE *f = fopen(file.c_str(), "wb");
-    if (!f) {
-        ngfx_fail("cannot write %s", file.c_str());
-        return -1;
-    }
+    if (!f) return ngfx_fail("cannot write %s", file.c_str());
     fwrite(source.data, 1, (size_t)source.len, f);
     fclose(f);
     std::error_code ec;
     auto cwd = std::filesystem::current_path(ec).string();
-    if (compile_file(file, cwd)) return (int64_t)blob_result.size();
+    if (compile_file(file, cwd, out)) return true;
     string msg = ngfx_error_text();
     if (msg.compare(0, file.size(), file) == 0) {
         msg = "<slang source>" + msg.substr(file.size());
         fail(msg);
     }
-    return -1;
-}
-
-// Copies the blob the last compile made into `out`, which holds its size.
-int64_t ngfx_slang_result(ngfx_bytes out) {
-    auto n = std::min((int64_t)blob_result.size(), out.len);
-    if (n > 0) memcpy(out.data, blob_result.data(), (size_t)n);
-    return (int64_t)blob_result.size();
+    return false;
 }
 
 void ngfx_slang_time(double *seconds, int *modules) {
