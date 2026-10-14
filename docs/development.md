@@ -268,18 +268,11 @@ ref moves, compare both and move SDL in the same commit.
 - Programs print CRLF on Windows. `run_tests.py` compares with line endings normalized.
 - `goose run` prints its compile summary on stderr; a test's stdout is the program's
   alone.
-- A path source must start with `./` or `../`: `".."` is taken for a git source.
-- A first build that fails at configure, as it does without a new enough slangc, stays
-  failed: delete the package's directory under `~/.goose/build/pkg/`
-  (`github.com/kaitk/goose-ngfx/<ref>` for a GitHub source, `local/*` for a directory),
-  then run again
-  ([findings](goose-findings.md#a-package-whose-configure-fails-is-never-configured-again)).
 - On Windows, keep `GOOSE_HOME` short. Goose's cache adds about 110 characters below it
   (`build\pkg\local\<hash>\<toolchain>\cmake`), and CMake's compiler check about 120
   more, so a `GOOSE_HOME` much longer than `C:\Users\<name>\.goose` passes Windows'
   260-character path limit, and the first configure fails with `RC1109: error creating
-  ...manifest.res` (clang-cl) or `C1041: cannot open program database` (MSVC). It then
-  stays failed, as above.
+  ...manifest.res` (clang-cl) or `C1041: cannot open program database` (MSVC).
 - A fetched copy of the package bakes the slangc and NoGraphicsAPI paths of the machine
   that built it into the layer, as a local build does.
 - A `git worktree` of this repository starts without its submodules: run

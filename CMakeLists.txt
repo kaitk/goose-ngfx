@@ -7,9 +7,8 @@
 cmake_minimum_required(VERSION 3.25)
 project(goose_ngfx C CXX)
 # ngfx links NoGraphicsAPI's Objective-C++ backend, and CMake wants a language
-# enabled in a directory above every target that compiles or links it.
-# NoGraphicsAPI enables it in its own directory only, and Goose's wrapper
-# project enables C alone, so without this the generate step fails on macOS.
+# enabled in a directory above every target that compiles or links it, and
+# NoGraphicsAPI enables it in its own directory only.
 if(APPLE)
     enable_language(OBJCXX)
 endif()
@@ -158,9 +157,6 @@ add_library(ngfx STATIC
     "${NGFX_OUT}/ngfx_mips_code.h"
 )
 target_include_directories(ngfx PRIVATE native "${NGFX_OUT}")
-# PRIVATE, so only the link closure reaches the targets of Goose's wrapper
-# project, whose top level enables C alone and can't meet NoGraphicsAPI's
-# cxx_std_20 (docs/goose-findings.md).
 target_link_libraries(ngfx PRIVATE SDL3::SDL3-static NoGraphicsAPI::NoGraphicsAPI NoGraphicsAPIUtility::uploads
                       NoGraphicsAPIUtility::textures NoGraphicsAPIUtility::allocators)
 target_compile_definitions(ngfx PRIVATE

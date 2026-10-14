@@ -86,7 +86,7 @@ and CMake (`brew install cmake`), on Apple silicon:
 
 ```sh
 git clone https://github.com/aardappel/goose.git
-git -C goose checkout fe6c543
+git -C goose checkout 46356c2
 cmake -S goose -B goose/build -DCMAKE_BUILD_TYPE=Release
 cmake --build goose/build -j
 export GOOSE=$PWD/goose/build/goose
@@ -108,7 +108,7 @@ VS 2026, which puts the Build Tools' CMake on `PATH`:
 
 ```powershell
 git clone https://github.com/aardappel/goose.git
-git -C goose checkout fe6c543
+git -C goose checkout 46356c2
 cmake -S goose -B goose\build -G "Visual Studio 18 2026"
 cmake --build goose\build --config Release
 $env:GOOSE = "$PWD\goose\build\Release\goose.exe"
@@ -137,7 +137,7 @@ cd samples; & $env:GOOSE mini_minecraft.goose
 
 | What | Pin | Why |
 |---|---|---|
-| Goose | `aardappel/goose` `fe6c543` (`master`, 2026-10-11): the compiler tested with | The language, the package system, and the runtime ABI change often |
+| Goose | `aardappel/goose` `46356c2` (`master`, 2026-10-13): the compiler tested with | The language, the package system, and the runtime ABI change often |
 | NoGraphicsAPI | `sebbbi/NoGraphicsAPI` `0400414` | Its API is young and changes without notice |
 | SDL | `libsdl-org/SDL` `fa2c02b`, the commit `aardappel/goose_gfx` `v1` pins | A program that also imports `audio` or `ui` links both packages' SDL ([findings](docs/goose-findings.md#two-packages-cant-share-a-c-library)) |
 

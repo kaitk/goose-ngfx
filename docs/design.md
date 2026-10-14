@@ -135,9 +135,9 @@ compares with the `extern` declarations in `ngfx.goose`.
   slangc on the machine that runs the program, and Slang errors that abort the program
   rather than fail its compile
   ([findings](goose-findings.md#shaders-in-an-outside-language-compile-at-run-time)).
-- **The result comes back in two calls**, the size and then the bytes, because a library
-  can't append to a Goose builder
-  ([findings](goose-findings.md#a-c-library-cant-append-to-a-goose-builder)).
+- **The result comes back in two calls**, the size and then the bytes. Goose gave a
+  package's C `goose.h` at `884f2c7`, whose `gs_bld_append` appends to a `u8[>..]&`, so
+  one call could now do; that change hasn't been made.
 - **Tool paths are found at configure time**, overridable with `NGFX_SLANGC`,
   `NGFX_SPIRV_VAL`, and `NGFX_NOGRAPHICSAPI`. The include directories are the source
   tree's.

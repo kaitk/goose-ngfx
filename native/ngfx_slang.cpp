@@ -14,8 +14,7 @@
 //
 // The blob always holds SPIR-V, and a metallib on a Mac, where that is the
 // backend a program runs on. The last blob compiled is kept here until the
-// Goose side copies it out (ngfx_slang_result), since C cannot append to a
-// Goose builder: gs_bld_append is static to the program's runtime.
+// Goose side copies it out (ngfx_slang_result).
 
 #include <algorithm>
 #include <atomic>
