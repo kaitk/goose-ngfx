@@ -23,7 +23,7 @@ Declare the package in your program's root file, and import it:
 
 ```goose
 import vec;
-import ngfx from "github.com/kaitk/goose-ngfx@v0.1.2";
+import ngfx from "github.com/kaitk/goose-ngfx@v0.2.0";
 
 fn main() {
     guard ngfx::open("Hello, ngfx", 640, 480) else { abort(ngfx::error()); }
@@ -48,7 +48,7 @@ Goose's `ui` through ngfx ([docs/api.md](docs/api.md#ngfx_ui)).
 
 ## Status
 
-Version 0.1.2: the API may still change. Built and tested on macOS 26 with Metal 4 (M1
+Version 0.2.0: the API may still change. Built and tested on macOS 26 with Metal 4 (M1
 Pro) and on Windows 11 with Vulkan (RTX 4090). On both, the API check, every test, and
 every sample pass, run in the compiler and built; on Windows, with clang-cl and with
 MSVC. On Linux, ngfx builds and runs headless only, since NoGraphicsAPI can't present
