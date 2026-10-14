@@ -8,7 +8,8 @@
 - Toolchain, build, and tests: `docs/development.md`
 - Goose gaps found here: `docs/goose-findings.md`
 - Task tracking: `tasks/` (see `tasks/README.md`)
-- Writing docs: `.claude/skills/google-style/SKILL.md`
+- Substantial doc drafts and requested prose reviews:
+  `.claude/skills/google-style/SKILL.md`; other writing follows "Writing" below
 - The language: Goose's `docs/tutorial.md`, `goose_spec.md`, `stdlib.md`, and
   `packages.md`, in a clone of `aardappel/goose` at the pin (`../goose` on the
   maintainer's Windows machine; on the Mac, `../goose-upstream`, since `../goose` there
@@ -22,6 +23,22 @@ change or ask first. Record setup facts and environment traps you find in
 Don't name this repository's maintainer in docs, Markdown, code, or comments; write
 "the maintainer". The repository URL `github.com/kaitk/goose-ngfx` stays as it is.
 
+## Writing
+
+- Lead with the decision, behavior, or action, then explain why. Name the responsible
+  component and use concrete facts. Cut filler and repeated summaries.
+- Preserve technical meaning when editing: actors, negations, conditions, numbers,
+  versions, commands, paths, and identifiers. Keep decided/proposed/open,
+  implemented/planned, and must/should/can distinct. Flag contradictions instead of
+  silently resolving them while copyediting.
+- Record a decision with its reason and the trade-off that matters. Keep each fact in
+  one place and link to it elsewhere. Use absolute dates for dated events.
+- Match the document's format. Tasks follow `tasks/README.md`, with concrete acceptance
+  criteria. Use sentence-case headings, backticks for code identifiers and commands,
+  and descriptive links. Wrap prose at about 90 characters.
+- Use prose for connected ideas, lists for steps or separate items, and tables for
+  comparisons. Keep structure proportional to the content.
+
 ## A library for Goose, not a change to Goose
 
 - Goose changes daily. Fetch it at the start of a session and move the pin when it lags
@@ -33,6 +50,9 @@ Don't name this repository's maintainer in docs, Markdown, code, or comments; wr
 - Every finding names the Goose commit it was found on, the pin at the time. When one
   lacks it, recover it from this repository's history: the pin in the commit that added
   the entry.
+- `docs/goose-findings.md` lists bugs first and feature requests after, each part from
+  the least work a fix is expected to take to the most. Place a new entry by that
+  order, and delete an entry once the pin has its fix (2026-10-14).
 - Write Goose the way Goose's own `samples/` and `stdlib/` do, and a package the way
   `goose_gfx` is one.
 - `ngfx.goose` and `native/ngfx_api.h` describe one boundary. Change both together,
