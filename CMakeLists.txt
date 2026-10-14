@@ -159,8 +159,7 @@ add_library(ngfx STATIC
 target_include_directories(ngfx PRIVATE native "${NGFX_OUT}")
 # goose.h: the Goose compiler's wrapper project puts it on the include path.
 # A build of this project alone takes it from the checkout the compiler in
-# GOOSE was built from, which the compiler can't write out
-# (docs/goose-findings.md).
+# GOOSE was built from: the compiler has no option to write it out.
 if(PROJECT_IS_TOP_LEVEL)
     get_filename_component(goose_bin "$ENV{GOOSE}" DIRECTORY)
     find_path(NGFX_GOOSE_H_DIR goose.h NO_DEFAULT_PATH

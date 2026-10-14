@@ -52,7 +52,8 @@ Don't name this repository's maintainer in docs, Markdown, code, or comments; wr
   the entry.
 - `docs/goose-findings.md` lists bugs first and feature requests after, each part from
   the least work a fix is expected to take to the most. Place a new entry by that
-  order, and delete an entry once the pin has its fix (2026-10-14).
+  order, and delete an entry once the pin has its fix, or once this repository no
+  longer needs what it asks for (2026-10-14).
 - Write Goose the way Goose's own `samples/` and `stdlib/` do, and a package the way
   `goose_gfx` is one.
 - `ngfx.goose` and `native/ngfx_api.h` describe one boundary. Change both together,
