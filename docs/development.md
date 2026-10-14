@@ -258,7 +258,7 @@ Then rebuild the compiler, run `python scripts/run_tests.py`, and update the pin
 SDL moves with `goose_gfx`, never alone: `third_party/SDL` must be the commit
 `goose_gfx` pins at the ref Goose blesses, and `CMakeLists.txt` must set the same SDL
 options as its `CMakeLists.txt`
-([findings](goose-findings.md#two-packages-cant-share-a-c-library)). When the blessed
+([design.md](design.md#how-it-is-built)). When the blessed
 ref moves, compare both and move SDL in the same commit.
 
 ## Traps

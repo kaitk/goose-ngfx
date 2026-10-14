@@ -31,8 +31,7 @@ so a Goose executable needs no Vulkan SDK and no external shader compiler, and G
 work is on CPU performance first. ngfx needs slangc and Metal 4 or Vulkan 1.4.
 
 So this repository uses Goose as it ships, as a package (`ngfx.goose`, `ngfx.build`, and
-a CMake project for the native part), and each compiler change has a counterpart here,
-recorded in [goose-findings.md](goose-findings.md):
+a CMake project for the native part), and each compiler change has a counterpart here:
 
 | In the fork | Here |
 |---|---|
@@ -106,9 +105,10 @@ compares with the `extern` declarations in `ngfx.goose`.
 
 - `native/ngfx_platform.c`: window, input, and time over SDL3, from gfx. The package
   builds its own SDL3, at the commit and with the options of Goose's gfx package, since
-  two packages can't share C. A program that also imports `audio` or `ui` links two
-  identical SDL archives, and the linker takes one; a `goose run` loads one per package
-  ([findings](goose-findings.md#two-packages-cant-share-a-c-library)).
+  a package's C is self-contained (Goose's `docs/packages.md`, "The native part"). A
+  program that also imports `audio` or `ui` links two identical SDL archives, and the
+  linker takes one; a `goose run` loads one per package, so the program has two SDL
+  states, one with ngfx's window and one with audio's device.
 - `native/ngfx_device.cpp`, `ngfx_resources.cpp`, `ngfx_draw.cpp`, `ngfx_gpu.hpp`: the GPU
   half over NoGraphicsAPI and NoGraphicsAPIUtility.
 - `native/ngfx_slang.cpp`: `ngfx::slang`.
