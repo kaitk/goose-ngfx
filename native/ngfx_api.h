@@ -28,6 +28,8 @@
 extern "C" {
 #endif
 
+enum { NGFX_MAX_GAMEPADS = 4 };
+
 #pragma pack(push, 1)
 
 typedef struct { uint8_t *data; int64_t len; } ngfx_bytes;   /* u8[:] */
@@ -117,7 +119,12 @@ typedef struct {
     X(void, ngfx_quit, (void)) \
     X(void, ngfx_flush, (void)) \
     X(void, ngfx_set_title, (ngfx_bytes title)) \
+    X(uint8_t, ngfx_set_fullscreen, (uint8_t on)) \
+    X(uint8_t, ngfx_fullscreen, (void)) \
+    X(void, ngfx_maximize, (void)) \
     X(void, ngfx_screen_size, (ngfx_int2 *out)) \
+    X(float, ngfx_pixel_density, (void)) \
+    X(float, ngfx_display_scale, (void)) \
     X(ngfx_texture, ngfx_screen, (void)) \
     X(ngfx_texture, ngfx_screen_depth, (void)) \
     X(double, ngfx_time, (void)) \
@@ -138,10 +145,20 @@ typedef struct {
     X(uint8_t, ngfx_focused, (void)) \
     X(uint8_t, ngfx_set_mouse_relative, (uint8_t on)) \
     X(uint8_t, ngfx_mouse_relative, (void)) \
+    X(uint8_t, ngfx_set_cursor, (int64_t shape)) \
     X(uint8_t, ngfx_set_cursor_visible, (uint8_t visible)) \
     X(uint8_t, ngfx_cursor_visible, (void)) \
     X(uint8_t, ngfx_inject_focus, (uint8_t focused)) \
     X(uint8_t, ngfx_inject_key, (ngfx_bytes name, uint8_t down)) \
+    /* Gamepads. */ \
+    X(uint8_t, ngfx_gamepad_connected, (int64_t slot)) \
+    X(int64_t, ngfx_gamepad_changes, (void)) \
+    X(int64_t, ngfx_gamepad_type, (int64_t slot)) \
+    X(float, ngfx_gamepad_axis, (int64_t slot, int64_t axis)) \
+    X(uint8_t, ngfx_gamepad_down, (int64_t slot, int64_t button)) \
+    X(uint8_t, ngfx_gamepad_pressed, (int64_t slot, int64_t button)) \
+    X(uint8_t, ngfx_gamepad_released, (int64_t slot, int64_t button)) \
+    X(uint8_t, ngfx_gamepad_rumble, (int64_t slot, float low, float high, int64_t ms)) \
     X(void, ngfx_inject_mouse, (float x, float y, int64_t button, uint8_t down)) \
     X(int64_t, ngfx_events, (ngfx_event_slice out)) \
     X(void, ngfx_text_input, (uint8_t on)) \
@@ -211,6 +228,27 @@ NGFX_API(NGFX_PROTO)
     X(i32, WINDOW_HIDDEN, 2) \
     X(i32, WINDOW_FULLSCREEN, 4) \
     X(i32, WINDOW_ON_DEMAND, 64) \
+    /* System cursor shapes, SDL_SystemCursor. */ \
+    X(i32, CURSOR_DEFAULT, 0) \
+    X(i32, CURSOR_TEXT, 1) \
+    X(i32, CURSOR_WAIT, 2) \
+    X(i32, CURSOR_CROSSHAIR, 3) \
+    X(i32, CURSOR_PROGRESS, 4) \
+    X(i32, CURSOR_NWSE_RESIZE, 5) \
+    X(i32, CURSOR_NESW_RESIZE, 6) \
+    X(i32, CURSOR_EW_RESIZE, 7) \
+    X(i32, CURSOR_NS_RESIZE, 8) \
+    X(i32, CURSOR_MOVE, 9) \
+    X(i32, CURSOR_NOT_ALLOWED, 10) \
+    X(i32, CURSOR_POINTER, 11) \
+    X(i32, CURSOR_NW_RESIZE, 12) \
+    X(i32, CURSOR_N_RESIZE, 13) \
+    X(i32, CURSOR_NE_RESIZE, 14) \
+    X(i32, CURSOR_E_RESIZE, 15) \
+    X(i32, CURSOR_SE_RESIZE, 16) \
+    X(i32, CURSOR_S_RESIZE, 17) \
+    X(i32, CURSOR_SW_RESIZE, 18) \
+    X(i32, CURSOR_W_RESIZE, 19) \
     /* Texture kinds. */ \
     X(i32, TEXTURE_2D, 0) \
     X(i32, TEXTURE_2D_ARRAY, 1) \

@@ -78,6 +78,28 @@ let WINDOW_FULLSCREEN: i32 = 4;
 // Any SDL event ends the wait, a timer's own too.
 let WINDOW_ON_DEMAND: i32 = 64;
 
+// System cursor shapes.
+let CURSOR_DEFAULT: i32 = 0;
+let CURSOR_TEXT: i32 = 1;
+let CURSOR_WAIT: i32 = 2;
+let CURSOR_CROSSHAIR: i32 = 3;
+let CURSOR_PROGRESS: i32 = 4;
+let CURSOR_NWSE_RESIZE: i32 = 5;
+let CURSOR_NESW_RESIZE: i32 = 6;
+let CURSOR_EW_RESIZE: i32 = 7;
+let CURSOR_NS_RESIZE: i32 = 8;
+let CURSOR_MOVE: i32 = 9;
+let CURSOR_NOT_ALLOWED: i32 = 10;
+let CURSOR_POINTER: i32 = 11;
+let CURSOR_NW_RESIZE: i32 = 12;
+let CURSOR_N_RESIZE: i32 = 13;
+let CURSOR_NE_RESIZE: i32 = 14;
+let CURSOR_E_RESIZE: i32 = 15;
+let CURSOR_SE_RESIZE: i32 = 16;
+let CURSOR_S_RESIZE: i32 = 17;
+let CURSOR_SW_RESIZE: i32 = 18;
+let CURSOR_W_RESIZE: i32 = 19;
+
 // Texture kinds.
 let TEXTURE_2D: i32 = 0;
 let TEXTURE_2D_ARRAY: i32 = 1;
@@ -345,6 +367,13 @@ fn flush() {
     check();
 }
 extern "ngfx_set_title" fn set_title(title: const u8[:]);
+// Borderless fullscreen at the desktop's resolution, or back to a window
+// (false if the window can't change). SDL changes it asynchronously, so
+// fullscreen() can lag a frame or two behind. maximize fills the desktop
+// as a window.
+extern "ngfx_set_fullscreen" fn set_fullscreen(on: bool) -> bool;
+extern "ngfx_fullscreen" fn fullscreen() -> bool;
+extern "ngfx_maximize" fn maximize();
 
 // The screen: what a frame draws into, an RGBA8 texture of the window's
 // size in pixels, with a depth texture to go with it. Both keep their
@@ -361,6 +390,16 @@ fn screen_size() -> int2 {
     screen_size_into(size);
     size
 }
+// The screen's pixels to each unit of the window's own coordinates: 2 on most
+// high-density displays, 1 elsewhere, including Windows at any scale setting.
+extern "ngfx_pixel_density" fn pixel_density() -> f32;
+// The pixel density times the system's content scale: what the system draws
+// its own text and controls at, 2 on a high-density Mac, 1.5 on Windows set to
+// 150%. Reported, never applied: the window and the screen stay as they are,
+// and it is up to the program whether to use it, as with ui::set_scale.
+// Both change as the window moves between displays; read them each frame to
+// follow it. 1 headless and with no window open.
+extern "ngfx_display_scale" fn display_scale() -> f32;
 
 extern "ngfx_time" fn time() -> f64;               // seconds since open
 extern "ngfx_delta_time" fn delta_time() -> f64;   // seconds the last frame took
@@ -425,6 +464,12 @@ extern "ngfx_focused" fn focused() -> bool;
 extern "ngfx_set_mouse_relative" fn set_mouse_relative(on: bool) -> bool;
 extern "ngfx_mouse_relative" fn mouse_relative() -> bool;
 
+// Select a system cursor shape, for example set_cursor(CURSOR_POINTER).
+// False on failure, with details in error(). Visibility is unchanged.
+// Headless calls validate the shape without changing the desktop cursor.
+// close() restores the default cursor and frees cached shapes.
+extern "ngfx_set_cursor" fn set_cursor(shape: i64) -> bool;
+
 // Visibility outside relative mode; useful when drawing your own cursor.
 // Relative mode always hides it, then restores this preference when disabled.
 // Focus loss resets the preference to visible. Hiding without focus fails.
@@ -432,6 +477,45 @@ extern "ngfx_mouse_relative" fn mouse_relative() -> bool;
 // headless it reports the simulated state. close() restores the system cursor.
 extern "ngfx_set_cursor_visible" fn set_cursor_visible(visible: bool) -> bool;
 extern "ngfx_cursor_visible" fn cursor_visible() -> bool;
+
+// Gamepads, in slots 0..MAX_GAMEPADS-1, filled as pads connect (SDL's
+// standard layout: GAMEPAD_SOUTH is A on Xbox, Cross on PlayStation). A
+// slot frees when its pad disconnects; gamepad_changes counts connects and
+// disconnects, so a program can notice either. Buttons are held state plus
+// the latest frame()'s edges, like keys. Sticks are -1..1, triggers 0..1,
+// with no deadzone applied. gamepad_type is SDL's SDL_GamepadType (0 when
+// the slot is empty). Rumble strengths are 0..1; it returns false when
+// the pad cannot rumble.
+let MAX_GAMEPADS = 4;
+let GAMEPAD_SOUTH = 0;
+let GAMEPAD_EAST = 1;
+let GAMEPAD_WEST = 2;
+let GAMEPAD_NORTH = 3;
+let GAMEPAD_BACK = 4;
+let GAMEPAD_GUIDE = 5;
+let GAMEPAD_START = 6;
+let GAMEPAD_LEFT_STICK = 7;
+let GAMEPAD_RIGHT_STICK = 8;
+let GAMEPAD_LEFT_SHOULDER = 9;
+let GAMEPAD_RIGHT_SHOULDER = 10;
+let GAMEPAD_DPAD_UP = 11;
+let GAMEPAD_DPAD_DOWN = 12;
+let GAMEPAD_DPAD_LEFT = 13;
+let GAMEPAD_DPAD_RIGHT = 14;
+let AXIS_LEFT_X = 0;
+let AXIS_LEFT_Y = 1;
+let AXIS_RIGHT_X = 2;
+let AXIS_RIGHT_Y = 3;
+let AXIS_LEFT_TRIGGER = 4;
+let AXIS_RIGHT_TRIGGER = 5;
+extern "ngfx_gamepad_connected" fn gamepad_connected(slot: i64) -> bool;
+extern "ngfx_gamepad_changes" fn gamepad_changes() -> i64;
+extern "ngfx_gamepad_type" fn gamepad_type(slot: i64) -> i64;
+extern "ngfx_gamepad_axis" fn gamepad_axis(slot: i64, axis: i64) -> f32;
+extern "ngfx_gamepad_down" fn gamepad_down(slot: i64, button: i64) -> bool;
+extern "ngfx_gamepad_pressed" fn gamepad_pressed(slot: i64, button: i64) -> bool;
+extern "ngfx_gamepad_released" fn gamepad_released(slot: i64, button: i64) -> bool;
+extern "ngfx_gamepad_rumble" fn gamepad_rumble(slot: i64, low: f32, high: f32, ms: i64) -> bool;
 
 // Input as if from the keyboard or mouse, seen at the next frame(): what a
 // test drives a program with. The mouse goes to pixel x, y; a button of 0

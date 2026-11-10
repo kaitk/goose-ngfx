@@ -21,6 +21,7 @@ typedef struct {
     SDL_Window *window;
     SDL_MetalView metal_view;
     bool video_inited;
+    bool gamepad_inited;
 
     /* Input: held state plus every transition seen in this frame, as gfx's. */
     bool quit;
@@ -31,9 +32,18 @@ typedef struct {
     bool mouse_in;
     bool focused;
     bool mouse_relative;
+    SDL_Cursor *cursors[SDL_SYSTEM_CURSOR_COUNT];
     bool cursor_visible;
     uint8_t button_clicks[32];
     int window_w, window_h, window_pw, window_ph;
+    /* Gamepads, by slot: opened as SDL reports them, a slot freed when its
+       pad goes away. Buttons are held state plus this frame's edges. */
+    struct {
+        SDL_Gamepad *pad;
+        SDL_JoystickID id;
+        uint32_t buttons, pressed, released;
+    } gamepads[NGFX_MAX_GAMEPADS];
+    int64_t gamepad_changes;            /* connects plus disconnects since open */
     ngfx_event *events;
     int64_t nevents, events_cap;
     char **injected;
@@ -184,6 +194,8 @@ static bool ngfx_start(bool windowed, ngfx_bytes title, int64_t width, int64_t h
         if (!ok) return ngfx_sdl_fail("initializing SDL video");
     }
     ngfx.video_inited = true;
+    /* No gamepad subsystem is no gamepads, not a failure. */
+    ngfx.gamepad_inited = SDL_InitSubSystem(SDL_INIT_GAMEPAD);
     int pw = (int)width, ph = (int)height;
     ngfx.window_w = ngfx.window_h = ngfx.window_pw = ngfx.window_ph = 1;
     void *layer = NULL;
@@ -252,11 +264,17 @@ void ngfx_close(void) {
     if (ngfx.window) {
         SDL_SetWindowRelativeMouseMode(ngfx.window, false);
         SDL_ShowCursor();
+        SDL_SetCursor(SDL_GetDefaultCursor());
 #if defined(__APPLE__)
         if (ngfx.metal_view) SDL_Metal_DestroyView(ngfx.metal_view);
 #endif
         SDL_DestroyWindow(ngfx.window);
     }
+    for (int i = 0; i < SDL_SYSTEM_CURSOR_COUNT; i++)
+        SDL_DestroyCursor(ngfx.cursors[i]);
+    for (int i = 0; i < NGFX_MAX_GAMEPADS; i++)
+        if (ngfx.gamepads[i].pad) SDL_CloseGamepad(ngfx.gamepads[i].pad);
+    if (ngfx.gamepad_inited) SDL_QuitSubSystem(SDL_INIT_GAMEPAD);
     if (ngfx.video_inited) SDL_QuitSubSystem(SDL_INIT_VIDEO);
     char error[sizeof ngfx.error];
     memcpy(error, ngfx.error, sizeof error);
@@ -274,6 +292,39 @@ void ngfx_driver(gs_rref out) {
 void ngfx_set_title(ngfx_bytes title) {
     char buf[512];
     if (ngfx.window) SDL_SetWindowTitle(ngfx.window, ngfx_cstr(title, buf, sizeof buf));
+}
+
+/* Desktop fullscreen (the display's own mode, no mode switch), or back to
+   a window. SDL applies it asynchronously; fullscreen() reports the
+   window's current flags. */
+uint8_t ngfx_set_fullscreen(uint8_t on) {
+    if (!ngfx.window) return 0;
+    if (!SDL_SetWindowFullscreenMode(ngfx.window, NULL) ||
+        !SDL_SetWindowFullscreen(ngfx.window, on != 0)) {
+        ngfx_sdl_fail("setting fullscreen");
+        return 0;
+    }
+    return 1;
+}
+
+uint8_t ngfx_fullscreen(void) {
+    return ngfx.window && (SDL_GetWindowFlags(ngfx.window) & SDL_WINDOW_FULLSCREEN) != 0;
+}
+
+void ngfx_maximize(void) {
+    if (ngfx.window) SDL_MaximizeWindow(ngfx.window);
+}
+
+/* What SDL says of the window, for the program to use as it likes: ngfx itself
+   scales nothing by these. 1 without a window, as headless. */
+float ngfx_pixel_density(void) {
+    float density = ngfx.window ? SDL_GetWindowPixelDensity(ngfx.window) : 0;
+    return density > 0 ? density : 1;
+}
+
+float ngfx_display_scale(void) {
+    float scale = ngfx.window ? SDL_GetWindowDisplayScale(ngfx.window) : 0;
+    return scale > 0 ? scale : 1;
 }
 
 void ngfx_quit(void) { ngfx.quit = true; }
@@ -427,6 +478,110 @@ static void ngfx_focus(bool focused) {
 #define NGFX_IDLE_WAIT_MS 1000
 #define NGFX_EXPOSE_FRAMES 2
 
+/* --- gamepads --------------------------------------------------------------- */
+
+static int ngfx_gamepad_slot_of(SDL_JoystickID id) {
+    for (int i = 0; i < NGFX_MAX_GAMEPADS; i++)
+        if (ngfx.gamepads[i].pad && ngfx.gamepads[i].id == id) return i;
+    return -1;
+}
+
+static void ngfx_gamepad_added(SDL_JoystickID id) {
+    if (ngfx_gamepad_slot_of(id) >= 0) return;
+    for (int i = 0; i < NGFX_MAX_GAMEPADS; i++) {
+        if (ngfx.gamepads[i].pad) continue;
+        SDL_Gamepad *pad = SDL_OpenGamepad(id);
+        if (!pad) return;
+        ngfx.gamepads[i].pad = pad;
+        ngfx.gamepads[i].id = id;
+        ngfx.gamepads[i].buttons = ngfx.gamepads[i].pressed = ngfx.gamepads[i].released = 0;
+        ngfx.gamepad_changes++;
+        return;
+    }
+}
+
+static void ngfx_gamepad_removed(SDL_JoystickID id) {
+    int i = ngfx_gamepad_slot_of(id);
+    if (i < 0) return;
+    SDL_CloseGamepad(ngfx.gamepads[i].pad);
+    /* Whatever was held is released by the pad going away. */
+    ngfx.gamepads[i].released |= ngfx.gamepads[i].buttons;
+    ngfx.gamepads[i].buttons = 0;
+    ngfx.gamepads[i].pad = NULL;
+    ngfx.gamepad_changes++;
+}
+
+static void ngfx_gamepad_button(SDL_JoystickID id, uint8_t button, bool down) {
+    int i = ngfx_gamepad_slot_of(id);
+    if (i < 0 || button >= 32) return;
+    uint32_t bit = 1u << button;
+    if (down && !(ngfx.gamepads[i].buttons & bit)) ngfx.gamepads[i].pressed |= bit;
+    if (!down && (ngfx.gamepads[i].buttons & bit)) ngfx.gamepads[i].released |= bit;
+    if (down) ngfx.gamepads[i].buttons |= bit;
+    else ngfx.gamepads[i].buttons &= ~bit;
+}
+
+static bool ngfx_gamepad_slot(int64_t slot) {
+    if (slot < 0 || slot >= NGFX_MAX_GAMEPADS) {
+        ngfx_misuse("no gamepad slot %lld: slots are 0..%d", (long long)slot,
+                    NGFX_MAX_GAMEPADS - 1);
+        return false;
+    }
+    return true;
+}
+
+static uint32_t ngfx_gamepad_bit(int64_t button) {
+    if (button < 0 || button >= SDL_GAMEPAD_BUTTON_COUNT) {
+        ngfx_misuse("no gamepad button %lld", (long long)button);
+        return 0;
+    }
+    return 1u << button;
+}
+
+uint8_t ngfx_gamepad_connected(int64_t slot) {
+    return ngfx_gamepad_slot(slot) && ngfx.gamepads[slot].pad != NULL;
+}
+
+int64_t ngfx_gamepad_changes(void) { return ngfx.gamepad_changes; }
+
+int64_t ngfx_gamepad_type(int64_t slot) {
+    if (!ngfx_gamepad_connected(slot)) return 0;
+    return (int64_t)SDL_GetGamepadType(ngfx.gamepads[slot].pad);
+}
+
+float ngfx_gamepad_axis(int64_t slot, int64_t axis) {
+    if (axis < 0 || axis >= SDL_GAMEPAD_AXIS_COUNT) {
+        ngfx_misuse("no gamepad axis %lld", (long long)axis);
+        return 0;
+    }
+    if (!ngfx_gamepad_connected(slot)) return 0;
+    int16_t v = SDL_GetGamepadAxis(ngfx.gamepads[slot].pad, (SDL_GamepadAxis)axis);
+    return v < 0 ? (float)v / 32768.0f : (float)v / 32767.0f;
+}
+
+uint8_t ngfx_gamepad_down(int64_t slot, int64_t button) {
+    uint32_t bit = ngfx_gamepad_bit(button);
+    return ngfx_gamepad_slot(slot) && (ngfx.gamepads[slot].buttons & bit) != 0;
+}
+
+uint8_t ngfx_gamepad_pressed(int64_t slot, int64_t button) {
+    uint32_t bit = ngfx_gamepad_bit(button);
+    return ngfx_gamepad_slot(slot) && (ngfx.gamepads[slot].pressed & bit) != 0;
+}
+
+uint8_t ngfx_gamepad_released(int64_t slot, int64_t button) {
+    uint32_t bit = ngfx_gamepad_bit(button);
+    return ngfx_gamepad_slot(slot) && (ngfx.gamepads[slot].released & bit) != 0;
+}
+
+uint8_t ngfx_gamepad_rumble(int64_t slot, float low, float high, int64_t ms) {
+    if (!ngfx_gamepad_connected(slot)) return 0;
+    float l = low < 0 ? 0 : low > 1 ? 1 : low, h = high < 0 ? 0 : high > 1 ? 1 : high;
+    uint32_t duration = ms < 0 ? 0 : ms > 0xFFFFFFFF ? 0xFFFFFFFF : (uint32_t)ms;
+    return SDL_RumbleGamepad(ngfx.gamepads[slot].pad, (Uint16)(l * 65535), (Uint16)(h * 65535),
+                             duration);
+}
+
 uint8_t ngfx_frame(void) {
     if (!ngfx_need_device("frame")) return 0;
     if (ngfx_gpu_in_pass()) {
@@ -448,6 +603,8 @@ uint8_t ngfx_frame(void) {
     memset(ngfx.released_keys, 0, sizeof ngfx.released_keys);
     ngfx.pressed_buttons = ngfx.released_buttons = 0;
     ngfx.mouse_dx = ngfx.mouse_dy = ngfx.wheel = 0;
+    for (int i = 0; i < NGFX_MAX_GAMEPADS; i++)
+        ngfx.gamepads[i].pressed = ngfx.gamepads[i].released = 0;
     ngfx.nevents = 0;
     bool resized = false;
     SDL_Event e;
@@ -501,6 +658,16 @@ uint8_t ngfx_frame(void) {
                 ev->x = e.wheel.x;
                 ev->y = e.wheel.y;
             } break;
+            case SDL_EVENT_GAMEPAD_ADDED:
+                ngfx_gamepad_added(e.gdevice.which);
+                break;
+            case SDL_EVENT_GAMEPAD_REMOVED:
+                ngfx_gamepad_removed(e.gdevice.which);
+                break;
+            case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+            case SDL_EVENT_GAMEPAD_BUTTON_UP:
+                ngfx_gamepad_button(e.gbutton.which, e.gbutton.button, e.gbutton.down);
+                break;
             case SDL_EVENT_WINDOW_MOUSE_ENTER:
             case SDL_EVENT_WINDOW_MOUSE_LEAVE:
                 ngfx.mouse_in = e.type == SDL_EVENT_WINDOW_MOUSE_ENTER;
@@ -668,6 +835,20 @@ uint8_t ngfx_set_mouse_relative(uint8_t on) {
     SDL_FlushEvent(SDL_EVENT_MOUSE_MOTION);
     ngfx.mouse_dx = ngfx.mouse_dy = 0;
     return 1;
+}
+
+uint8_t ngfx_set_cursor(int64_t shape) {
+    if (!ngfx_need_device("set_cursor")) return 0;
+    if (shape < NGFX_CURSOR_DEFAULT || shape > NGFX_CURSOR_W_RESIZE)
+        return ngfx_fail("set_cursor: invalid system cursor %lld", (long long)shape);
+    if (!ngfx.window) return 1;
+    SDL_Cursor *cursor = ngfx.cursors[shape];
+    if (!cursor) {
+        cursor = SDL_CreateSystemCursor((SDL_SystemCursor)shape);
+        if (!cursor) return ngfx_sdl_fail("set_cursor: creating a system cursor");
+        ngfx.cursors[shape] = cursor;
+    }
+    return SDL_SetCursor(cursor) || ngfx_sdl_fail("set_cursor");
 }
 
 uint8_t ngfx_set_cursor_visible(uint8_t visible) {
