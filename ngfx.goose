@@ -310,26 +310,26 @@ struct PassDesc {
 
 // Whether the ngfx layer is linked in: true wherever a program using it
 // links, which is only as an executable built from the generated C.
-extern "ngfx_available" fn available() -> bool;
+extern fn available() -> bool = "ngfx_available";
 
 // A window of width x height in the display's own coordinates, and the GPU
 // device, or false with error() set. The screen has every pixel of the
 // window, which a high-density display has more of: screen_size() says how
 // many.
-extern "ngfx_open" fn open(title: const u8[:], width: i64, height: i64, flags: i64) -> bool;
+extern fn open(title: const u8[:], width: i64, height: i64, flags: i64) -> bool = "ngfx_open";
 fn open(title: const u8[:], width: i64, height: i64) -> bool { open(title, width, height, 0) }
 // The device alone, drawing into a screen of width x height that no window
 // shows: for tests, and for tools that only compute or render to files.
-extern "ngfx_open_headless" fn open_headless(width: i64, height: i64, flags: i64) -> bool;
+extern fn open_headless(width: i64, height: i64, flags: i64) -> bool = "ngfx_open_headless";
 fn open_headless(width: i64, height: i64) -> bool { open_headless(width, height, 0) }
-extern "ngfx_close" fn close_raw();
+extern fn close_raw() = "ngfx_close";
 fn close() {
     check();
     close_raw();
 }
 
-extern "ngfx_error" fn error_into(out: u8[>..]&);
-extern "ngfx_misuse_count" fn misuse_count() -> i64;
+extern fn error_into(out: u8[>..]&) = "ngfx_error";
+extern fn misuse_count() -> i64 = "ngfx_misuse_count";
 // Why the last call that failed did, as text.
 fn error() -> u8[>..] {
     var text: u8[>..] = [];
@@ -341,7 +341,7 @@ fn check() {
     if misuse_count() > 0 { abort(str("ngfx: ", error())); }
 }
 
-extern "ngfx_driver" fn driver_into(out: u8[>..]&);
+extern fn driver_into(out: u8[>..]&) = "ngfx_driver";
 // NoGraphicsAPI's backend: "metal" or "vulkan".
 fn driver() -> u8[>..] {
     var name: u8[>..] = [];
@@ -353,27 +353,27 @@ fn driver() -> u8[>..] {
 // window, and handles the window's events: false once it has been asked to
 // close, or quit() was called. Called at the top of the loop, before the
 // first frame is drawn.
-extern "ngfx_frame" fn frame_raw() -> bool;
+extern fn frame_raw() -> bool = "ngfx_frame";
 fn frame() -> bool {
     let running = frame_raw();
     check();
     running
 }
-extern "ngfx_quit" fn quit();
+extern fn quit() = "ngfx_quit";
 // Submits everything drawn so far and waits until the GPU has done it.
-extern "ngfx_flush" fn flush_raw();
+extern fn flush_raw() = "ngfx_flush";
 fn flush() {
     flush_raw();
     check();
 }
-extern "ngfx_set_title" fn set_title(title: const u8[:]);
+extern fn set_title(title: const u8[:]) = "ngfx_set_title";
 // Borderless fullscreen at the desktop's resolution, or back to a window
 // (false if the window can't change). SDL changes it asynchronously, so
 // fullscreen() can lag a frame or two behind. maximize fills the desktop
 // as a window.
-extern "ngfx_set_fullscreen" fn set_fullscreen(on: bool) -> bool;
-extern "ngfx_fullscreen" fn fullscreen() -> bool;
-extern "ngfx_maximize" fn maximize();
+extern fn set_fullscreen(on: bool) -> bool = "ngfx_set_fullscreen";
+extern fn fullscreen() -> bool = "ngfx_fullscreen";
+extern fn maximize() = "ngfx_maximize";
 
 // The screen: what a frame draws into, an RGBA8 texture of the window's
 // size in pixels, with a depth texture to go with it. Both keep their
@@ -382,9 +382,9 @@ extern "ngfx_maximize" fn maximize();
 // so that consecutive frames can overlap on the GPU; what a frame doesn't
 // clear holds what the last frame drew. index(screen()) holds for the frame
 // it is taken in.
-extern "ngfx_screen" fn screen() -> Texture;
-extern "ngfx_screen_depth" fn screen_depth() -> Texture;
-extern "ngfx_screen_size" fn screen_size_into(out: int2&);
+extern fn screen() -> Texture = "ngfx_screen";
+extern fn screen_depth() -> Texture = "ngfx_screen_depth";
+extern fn screen_size_into(out: int2&) = "ngfx_screen_size";
 fn screen_size() -> int2 {
     var size = int2_0;
     screen_size_into(size);
@@ -392,21 +392,21 @@ fn screen_size() -> int2 {
 }
 // The screen's pixels to each unit of the window's own coordinates: 2 on most
 // high-density displays, 1 elsewhere, including Windows at any scale setting.
-extern "ngfx_pixel_density" fn pixel_density() -> f32;
+extern fn pixel_density() -> f32 = "ngfx_pixel_density";
 // The pixel density times the system's content scale: what the system draws
 // its own text and controls at, 2 on a high-density Mac, 1.5 on Windows set to
 // 150%. Reported, never applied: the window and the screen stay as they are,
 // and it is up to the program whether to use it, as with ui::set_scale.
 // Both change as the window moves between displays; read them each frame to
 // follow it. 1 headless and with no window open.
-extern "ngfx_display_scale" fn display_scale() -> f32;
+extern fn display_scale() -> f32 = "ngfx_display_scale";
 
-extern "ngfx_time" fn time() -> f64;               // seconds since open
-extern "ngfx_delta_time" fn delta_time() -> f64;   // seconds the last frame took
-extern "ngfx_frame_count" fn frame_count() -> i64;
+extern fn time() -> f64 = "ngfx_time";               // seconds since open
+extern fn delta_time() -> f64 = "ngfx_delta_time";   // seconds the last frame took
+extern fn frame_count() -> i64 = "ngfx_frame_count";
 // How many times ngfx has been opened in this process: handles made before it
 // last changed were released by close().
-extern "ngfx_open_count" fn open_count() -> i64;
+extern fn open_count() -> i64 = "ngfx_open_count";
 // --- input -------------------------------------------------------------------
 
 // Keys by SDL's scancode names: "A", "1", "Space", "Return", "Escape",
@@ -419,22 +419,22 @@ extern "ngfx_open_count" fn open_count() -> i64;
 // These queries do not consume input; the next frame() clears the edges.
 // The mouse is in the screen's pixels, which on a high-density display
 // outnumber the window's own coordinates.
-extern "ngfx_key_down" fn key_down(name: const u8[:]) -> bool;
-extern "ngfx_key_pressed" fn key_pressed(name: const u8[:]) -> bool;
-extern "ngfx_key_released" fn key_released(name: const u8[:]) -> bool;
-extern "ngfx_mouse_down" fn mouse_down(button: i64) -> bool;
-extern "ngfx_mouse_pressed" fn mouse_pressed(button: i64) -> bool;
-extern "ngfx_mouse_released" fn mouse_released(button: i64) -> bool;
-extern "ngfx_mouse_pos" fn mouse_pos_into(out: float2&);
-extern "ngfx_mouse_delta" fn mouse_delta_into(out: float2&);
-extern "ngfx_mouse_wheel" fn mouse_wheel() -> f32;
+extern fn key_down(name: const u8[:]) -> bool = "ngfx_key_down";
+extern fn key_pressed(name: const u8[:]) -> bool = "ngfx_key_pressed";
+extern fn key_released(name: const u8[:]) -> bool = "ngfx_key_released";
+extern fn mouse_down(button: i64) -> bool = "ngfx_mouse_down";
+extern fn mouse_pressed(button: i64) -> bool = "ngfx_mouse_pressed";
+extern fn mouse_released(button: i64) -> bool = "ngfx_mouse_released";
+extern fn mouse_pos_into(out: float2&) = "ngfx_mouse_pos";
+extern fn mouse_delta_into(out: float2&) = "ngfx_mouse_delta";
+extern fn mouse_wheel() -> f32 = "ngfx_mouse_wheel";
 // Whether the mouse is over the window, or holds a button pressed in it,
 // as SDL's mouse focus says: for a window opened under the mouse, from its
 // first move at the latest. mouse_pos is the mouse's place from open on,
 // and where it left the window while it is outside. Headless, whether the last
 // position injected is on the screen; an injected move decides it in a
 // window too.
-extern "ngfx_mouse_in_window" fn mouse_in_window() -> bool;
+extern fn mouse_in_window() -> bool = "ngfx_mouse_in_window";
 fn mouse_pos() -> float2 {
     var p = float2_0;
     mouse_pos_into(p);
@@ -452,7 +452,7 @@ fn mouse_delta() -> float2 {
 // EVENT_FOCUS_GAINED / EVENT_FOCUS_LOST in events(), with no payload fields.
 // Held keys/buttons get released edges and up events before EVENT_FOCUS_LOST.
 // Headless, focus starts true and inject_focus can change it for tests.
-extern "ngfx_focused" fn focused() -> bool;
+extern fn focused() -> bool = "ngfx_focused";
 
 // First-person mouse look: hide the cursor, confine it to the window, and
 // keep mouse_delta() moving past the window edges. Use deltas, not mouse_pos,
@@ -461,22 +461,22 @@ extern "ngfx_focused" fn focused() -> bool;
 // a camera jump. Setting the current mode again leaves motion alone.
 // Focus gain does not recapture: call again when the player resumes.
 // Headless, these keep the same state without touching the system mouse.
-extern "ngfx_set_mouse_relative" fn set_mouse_relative(on: bool) -> bool;
-extern "ngfx_mouse_relative" fn mouse_relative() -> bool;
+extern fn set_mouse_relative(on: bool) -> bool = "ngfx_set_mouse_relative";
+extern fn mouse_relative() -> bool = "ngfx_mouse_relative";
 
 // Select a system cursor shape, for example set_cursor(CURSOR_POINTER).
 // False on failure, with details in error(). Visibility is unchanged.
 // Headless calls validate the shape without changing the desktop cursor.
 // close() restores the default cursor and frees cached shapes.
-extern "ngfx_set_cursor" fn set_cursor(shape: i64) -> bool;
+extern fn set_cursor(shape: i64) -> bool = "ngfx_set_cursor";
 
 // Visibility outside relative mode; useful when drawing your own cursor.
 // Relative mode always hides it, then restores this preference when disabled.
 // Focus loss resets the preference to visible. Hiding without focus fails.
 // cursor_visible reports the effective visibility within the ngfx window;
 // headless it reports the simulated state. close() restores the system cursor.
-extern "ngfx_set_cursor_visible" fn set_cursor_visible(visible: bool) -> bool;
-extern "ngfx_cursor_visible" fn cursor_visible() -> bool;
+extern fn set_cursor_visible(visible: bool) -> bool = "ngfx_set_cursor_visible";
+extern fn cursor_visible() -> bool = "ngfx_cursor_visible";
 
 // Gamepads, in slots 0..MAX_GAMEPADS-1, filled as pads connect (SDL's
 // standard layout: GAMEPAD_SOUTH is A on Xbox, Cross on PlayStation). A
@@ -508,30 +508,30 @@ let AXIS_RIGHT_X = 2;
 let AXIS_RIGHT_Y = 3;
 let AXIS_LEFT_TRIGGER = 4;
 let AXIS_RIGHT_TRIGGER = 5;
-extern "ngfx_gamepad_connected" fn gamepad_connected(slot: i64) -> bool;
-extern "ngfx_gamepad_changes" fn gamepad_changes() -> i64;
-extern "ngfx_gamepad_type" fn gamepad_type(slot: i64) -> i64;
-extern "ngfx_gamepad_axis" fn gamepad_axis(slot: i64, axis: i64) -> f32;
-extern "ngfx_gamepad_down" fn gamepad_down(slot: i64, button: i64) -> bool;
-extern "ngfx_gamepad_pressed" fn gamepad_pressed(slot: i64, button: i64) -> bool;
-extern "ngfx_gamepad_released" fn gamepad_released(slot: i64, button: i64) -> bool;
-extern "ngfx_gamepad_rumble" fn gamepad_rumble(slot: i64, low: f32, high: f32, ms: i64) -> bool;
+extern fn gamepad_connected(slot: i64) -> bool = "ngfx_gamepad_connected";
+extern fn gamepad_changes() -> i64 = "ngfx_gamepad_changes";
+extern fn gamepad_type(slot: i64) -> i64 = "ngfx_gamepad_type";
+extern fn gamepad_axis(slot: i64, axis: i64) -> f32 = "ngfx_gamepad_axis";
+extern fn gamepad_down(slot: i64, button: i64) -> bool = "ngfx_gamepad_down";
+extern fn gamepad_pressed(slot: i64, button: i64) -> bool = "ngfx_gamepad_pressed";
+extern fn gamepad_released(slot: i64, button: i64) -> bool = "ngfx_gamepad_released";
+extern fn gamepad_rumble(slot: i64, low: f32, high: f32, ms: i64) -> bool = "ngfx_gamepad_rumble";
 
 // Input as if from the keyboard or mouse, seen at the next frame(): what a
 // test drives a program with. The mouse goes to pixel x, y; a button of 0
 // only moves it.
-extern "ngfx_inject_key" fn inject_key(name: const u8[:], down: bool) -> bool;
-extern "ngfx_inject_mouse" fn inject_mouse(x: f32, y: f32, button: i64, down: bool);
+extern fn inject_key(name: const u8[:], down: bool) -> bool = "ngfx_inject_key";
+extern fn inject_mouse(x: f32, y: f32, button: i64, down: bool) = "ngfx_inject_mouse";
 // Text as if typed: an EVENT_TEXT per character at the next frame().
-extern "ngfx_inject_text" fn inject_text(text: const u8[:]) -> bool;
+extern fn inject_text(text: const u8[:]) -> bool = "ngfx_inject_text";
 // A focus change at the next frame(), in order with other injected input.
 // Does not move operating-system focus; intended for headless tests.
-extern "ngfx_inject_focus" fn inject_focus(focused: bool) -> bool;
+extern fn inject_focus(focused: bool) -> bool = "ngfx_inject_focus";
 
 // The last frame's input in the order it came, key repeats and typed text
 // included: what text editing needs, where the state above loses what
 // happened between two frames.
-extern "ngfx_events" fn events_into(out: Event[:]) -> i64;
+extern fn events_into(out: Event[:]) -> i64 = "ngfx_events";
 fn events() -> Event[>..] {
     var out: Event[>..] = [];
     let n = events_into(out);
@@ -541,11 +541,11 @@ fn events() -> Event[>..] {
 }
 // Typed text comes as EVENT_TEXT only while text input is on: off by
 // default, since on some platforms it shows an on-screen keyboard.
-extern "ngfx_text_input" fn text_input(on: bool);
+extern fn text_input(on: bool) = "ngfx_text_input";
 // The scancode of the key of that name, as key_down takes it, 0 for none;
 // and the name the platform has for a key, as a label to show.
-extern "ngfx_scancode" fn scancode(name: const u8[:]) -> i64;
-extern "ngfx_key_name" fn key_name_into(scancode: i64, out: u8[>..]&);
+extern fn scancode(name: const u8[:]) -> i64 = "ngfx_scancode";
+extern fn key_name_into(scancode: i64, out: u8[>..]&) = "ngfx_key_name";
 fn key_name(scancode: i64) -> u8[>..] {
     var name: u8[>..] = [];
     key_name_into(scancode, name);
@@ -553,36 +553,36 @@ fn key_name(scancode: i64) -> u8[>..] {
 }
 
 // The system clipboard's text; headless, ngfx's own.
-extern "ngfx_clipboard" fn clipboard_into(out: u8[>..]&);
+extern fn clipboard_into(out: u8[>..]&) = "ngfx_clipboard";
 fn clipboard() -> u8[>..] {
     var text: u8[>..] = [];
     clipboard_into(text);
     return text;
 }
-extern "ngfx_set_clipboard" fn set_clipboard(text: const u8[:]) -> bool;
+extern fn set_clipboard(text: const u8[:]) -> bool = "ngfx_set_clipboard";
 // --- buffers and this frame's data ---------------------------------------------
 
 // A buffer of `size` bytes of GPU memory, holding `data` and zeros after it.
 // Shaders reach it through its address. Data comes from bytes_of:
 // ngfx::buffer(bytes_of(vertices)).
-extern "ngfx_create_buffer" fn buffer(size: i64, data: const u8[:]) -> Buffer;
+extern fn buffer(size: i64, data: const u8[:]) -> Buffer = "ngfx_create_buffer";
 fn buffer(data: const u8[:]) -> Buffer { buffer(data.len, data) }
 // New contents from `offset`, for every draw of the frame being recorded and
 // the frames after it.
-extern "ngfx_update_buffer" fn update_buffer(b: Buffer, offset: i64, data: const u8[:]) -> bool;
+extern fn update_buffer(b: Buffer, offset: i64, data: const u8[:]) -> bool = "ngfx_update_buffer";
 fn update_buffer(b: Buffer, data: const u8[:]) -> bool { update_buffer(b, 0, data) }
-extern "ngfx_read_buffer" fn read_buffer_into(b: Buffer, offset: i64, out: u8[:]) -> bool;
-extern "ngfx_buffer_size" fn buffer_size(b: Buffer) -> i64;
+extern fn read_buffer_into(b: Buffer, offset: i64, out: u8[:]) -> bool = "ngfx_read_buffer";
+extern fn buffer_size(b: Buffer) -> i64 = "ngfx_buffer_size";
 // The buffer's GPU address, for a root: a pointer in the shader.
-extern "ngfx_buffer_address" fn address(b: Buffer) -> u64;
-extern "ngfx_buffer_range" fn range_into(b: Buffer, out: Range&);
+extern fn address(b: Buffer) -> u64 = "ngfx_buffer_address";
+extern fn range_into(b: Buffer, out: Range&) = "ngfx_buffer_range";
 // The buffer's address and size.
 fn range(b: Buffer) -> Range {
     var r = Range { address: 0, size: 0 };
     range_into(b, r);
     r
 }
-extern "ngfx_release_buffer" fn release(b: Buffer);
+extern fn release(b: Buffer) = "ngfx_release_buffer";
 
 // Reads back `out.len` bytes from `offset`, once the GPU has done
 // everything recorded before. Not inside a pass.
@@ -604,7 +604,7 @@ fn read_buffer<T>(b: Buffer, out: T[>..]&, count: i64) -> bool {
 
 // `data` copied into this frame's memory, and its GPU address, 16-byte
 // aligned. It lives until the GPU has finished the frame.
-extern "ngfx_frame_data" fn frame_data(data: const u8[:]) -> u64;
+extern fn frame_data(data: const u8[:]) -> u64 = "ngfx_frame_data";
 // The same, with its size: indices that live one frame, for draw_indexed.
 fn frame_range(data: const u8[:]) -> Range { Range { address: frame_data(data), size: data.len } }
 
@@ -619,7 +619,7 @@ fn root<T>(value: T) -> u64 {
 
 // The extern fns taking a description by reference are wrapped by ones
 // taking it by value, which a struct literal can be passed to.
-extern "ngfx_create_texture" fn create_texture(desc: const TextureDesc&) -> Texture;
+extern fn create_texture(desc: const TextureDesc&) -> Texture = "ngfx_create_texture";
 fn texture(desc: TextureDesc) -> Texture { create_texture(desc) }
 fn texture2d(width: i64, height: i64, format: i32, usage: i32) -> Texture {
     texture(TextureDesc { format: format, usage: usage, width: width as i32,
@@ -648,19 +648,19 @@ fn texture_array(width: i64, height: i64, layers: i64, format: i32, usage: i32) 
 }
 
 // A PNG (or .bmp) as an RGBA8 texture, RGBA8_SRGB with LOAD_SRGB.
-extern "ngfx_load_texture" fn load_texture(path: const u8[:], flags: i64) -> Texture;
+extern fn load_texture(path: const u8[:], flags: i64) -> Texture = "ngfx_load_texture";
 fn load_texture(path: const u8[:]) -> Texture { load_texture(path, 0) }
 
-extern "ngfx_update_texture" fn update_texture_region(t: Texture, region: const Region&,
-                                                         data: const u8[:]) -> bool;
+extern fn update_texture_region(t: Texture, region: const Region&,
+                                data: const u8[:]) -> bool = "ngfx_update_texture";
 fn update_texture(t: Texture, region: Region, data: const u8[:]) -> bool {
     update_texture_region(t, region, data)
 }
 // The whole of mip 0 of layer 0: a 2D texture, or all of a 3D one.
 fn update_texture(t: Texture, data: const u8[:]) -> bool { update_texture(t, Region {}, data) }
 
-extern "ngfx_read_texture" fn read_texture_into(t: Texture, region: const Region&,
-                                                   out: u8[:]) -> bool;
+extern fn read_texture_into(t: Texture, region: const Region&,
+                            out: u8[:]) -> bool = "ngfx_read_texture";
 fn read_texture(t: Texture, region: Region, out: u8[:]) -> bool {
     let ok = read_texture_into(t, region, out);
     check();
@@ -687,7 +687,7 @@ fn read_pixels(t: Texture) -> u8[>..] {
 
 // An RGBA8 or BGRA8 texture's mip 0 as a PNG file; the screen as it is
 // shown, opaque.
-extern "ngfx_save_png" fn save_png_raw(t: Texture, path: const u8[:]) -> bool;
+extern fn save_png_raw(t: Texture, path: const u8[:]) -> bool = "ngfx_save_png";
 fn save_png(t: Texture, path: const u8[:]) -> bool {
     let ok = save_png_raw(t, path);
     check();
@@ -695,7 +695,7 @@ fn save_png(t: Texture, path: const u8[:]) -> bool {
 }
 fn screenshot(path: const u8[:]) -> bool { save_png(screen(), path) }
 
-extern "ngfx_texture_info" fn texture_info_into(t: Texture, out: TextureDesc&) -> bool;
+extern fn texture_info_into(t: Texture, out: TextureDesc&) -> bool = "ngfx_texture_info";
 fn texture_info(t: Texture) -> TextureDesc {
     var d = TextureDesc { width: 0, height: 0 };
     texture_info_into(t, d);
@@ -703,13 +703,13 @@ fn texture_info(t: Texture) -> TextureDesc {
 }
 // The texture's slot in the sampled-texture heap, for a root: the shader's
 // gpu_texture<Texture2D<float4>>(index). A SAMPLED texture has one.
-extern "ngfx_texture_index" fn index(t: Texture) -> u32;
+extern fn index(t: Texture) -> u32 = "ngfx_texture_index";
 // Its slot as a storage texture, gpu_texture<RWTexture2D<float4>>(index),
 // for a STORAGE texture; or one mip level's, which is how a shader writes a
 // level other than the first.
-extern "ngfx_storage_index" fn storage_index(t: Texture) -> u32;
-extern "ngfx_storage_mip_index" fn storage_index(t: Texture, mip: i64) -> u32;
-extern "ngfx_release_texture" fn release(t: Texture);
+extern fn storage_index(t: Texture) -> u32 = "ngfx_storage_index";
+extern fn storage_index(t: Texture, mip: i64) -> u32 = "ngfx_storage_mip_index";
+extern fn release(t: Texture) = "ngfx_release_texture";
 
 // The bytes one texel of `format` takes.
 fn texel_size(format: i32) -> i64 {
@@ -720,7 +720,7 @@ fn texel_size(format: i32) -> i64 {
     return 4;
 }
 
-extern "ngfx_create_sampler" fn create_sampler(desc: const SamplerDesc&) -> Sampler;
+extern fn create_sampler(desc: const SamplerDesc&) -> Sampler = "ngfx_create_sampler";
 fn sampler(desc: SamplerDesc) -> Sampler { create_sampler(desc) }
 fn sampler(filter: i32, wrap: i32) -> Sampler {
     sampler(SamplerDesc { min_filter: filter, mag_filter: filter, mip_filter: filter,
@@ -732,8 +732,8 @@ fn shadow_sampler() -> Sampler {
                           compare: COMPARE_LESS_EQUAL })
 }
 // The sampler's slot in the sampler heap, for a root: gpu_sampler(index).
-extern "ngfx_sampler_index" fn index(s: Sampler) -> u32;
-extern "ngfx_release_sampler" fn release(s: Sampler);
+extern fn index(s: Sampler) -> u32 = "ngfx_sampler_index";
+extern fn release(s: Sampler) = "ngfx_release_sampler";
 
 // --- shaders -----------------------------------------------------------------
 
@@ -742,8 +742,8 @@ extern "ngfx_release_sampler" fn release(s: Sampler);
 // "<slang source>:line". Its #include also looks in the working directory.
 // Compiling needs slangc (docs/development.md) but no device, and takes a
 // fraction of a second, so compile each module once, before the frame loop.
-extern "ngfx_compile_slang" fn compile_slang(source: const u8[:], out: u8[>..]&) -> bool;
-extern "ngfx_compile_slang_file" fn compile_slang_file(path: const u8[:], out: u8[>..]&) -> bool;
+extern fn compile_slang(source: const u8[:], out: u8[>..]&) -> bool = "ngfx_compile_slang";
+extern fn compile_slang_file(path: const u8[:], out: u8[>..]&) -> bool = "ngfx_compile_slang_file";
 fn slang(source: const u8[:]) -> u8[>..] {
     var blob: u8[>..] = [];
     if !compile_slang(source, blob) { abort(str("ngfx::slang: ", error())); }
@@ -767,9 +767,9 @@ fn slang_file(path: const u8[:]) -> u8[>..] {
 
 // `shader` is a slang() result. The vertex and fragment entry points
 // are its only ones of their stage, or the ones named.
-extern "ngfx_create_pipeline" fn create_pipeline(shader: const u8[:], vertex: const u8[:],
-                                                    fragment: const u8[:],
-                                                    desc: const PipelineDesc&) -> Pipeline;
+extern fn create_pipeline(shader: const u8[:], vertex: const u8[:],
+                          fragment: const u8[:],
+                          desc: const PipelineDesc&) -> Pipeline = "ngfx_create_pipeline";
 fn pipeline(shader: const u8[:], vertex: const u8[:], fragment: const u8[:],
             desc: PipelineDesc) -> Pipeline {
     create_pipeline(shader, vertex, fragment, desc)
@@ -778,12 +778,12 @@ fn pipeline(shader: const u8[:], desc: PipelineDesc) -> Pipeline {
     create_pipeline(shader, "", "", desc)
 }
 fn pipeline(shader: const u8[:]) -> Pipeline { pipeline(shader, PipelineDesc {}) }
-extern "ngfx_release_pipeline" fn release(p: Pipeline);
+extern fn release(p: Pipeline) = "ngfx_release_pipeline";
 // Makes the pipeline for the formats of `pass`'s targets now, as its first
 // draw into them would, so the driver compiles its shaders before the frame
 // loop rather than in a frame. A pipeline can be prepared for several sets
 // of targets. False, with error() set, if it can't draw into them.
-extern "ngfx_prepare_pipeline" fn prepare_desc(p: Pipeline, pass: const PassDesc&) -> bool;
+extern fn prepare_desc(p: Pipeline, pass: const PassDesc&) -> bool = "ngfx_prepare_pipeline";
 fn prepare(p: Pipeline, pass: PassDesc) -> bool { prepare_desc(p, pass) }
 // For passes into `target` and `depth`, or Texture { 0 } for none.
 fn prepare(p: Pipeline, target: Texture, depth: Texture) -> bool {
@@ -796,18 +796,18 @@ fn prepare_screen(p: Pipeline) -> bool { prepare(p, screen(), screen_depth()) }
 
 // The compute entry point `entry` of `shader`, or its only one; the thread
 // group size is the one its numthreads declares.
-extern "ngfx_create_compute_pipeline" fn compute_pipeline(shader: const u8[:],
-                                                             entry: const u8[:]) -> ComputePipeline;
+extern fn compute_pipeline(shader: const u8[:],
+                           entry: const u8[:]) -> ComputePipeline = "ngfx_create_compute_pipeline";
 fn compute_pipeline(shader: const u8[:]) -> ComputePipeline { compute_pipeline(shader, "") }
-extern "ngfx_release_compute_pipeline" fn release(p: ComputePipeline);
+extern fn release(p: ComputePipeline) = "ngfx_release_compute_pipeline";
 
 // --- passes and drawing ----------------------------------------------------------
 
 // Draws go between begin_pass and end_pass, into the targets the pass
 // names; the bound pipeline lasts until the pass ends.
-extern "ngfx_begin_pass" fn begin_pass_desc(desc: const PassDesc&) -> bool;
+extern fn begin_pass_desc(desc: const PassDesc&) -> bool = "ngfx_begin_pass";
 fn begin_pass(desc: PassDesc) -> bool { begin_pass_desc(desc) }
-extern "ngfx_end_pass" fn end_pass();
+extern fn end_pass() = "ngfx_end_pass";
 // Into one target, with a depth target or Texture { 0 }, cleared.
 fn begin_pass(target: Texture, depth: Texture, clear: float4) -> bool {
     var d = PassDesc { depth: depth, color_value: clear };
@@ -817,26 +817,26 @@ fn begin_pass(target: Texture, depth: Texture, clear: float4) -> bool {
 // Into the screen and its depth, cleared to `clear`.
 fn begin_screen(clear: float4) -> bool { begin_pass(screen(), screen_depth(), clear) }
 
-extern "ngfx_bind_pipeline" fn bind(p: Pipeline);
-extern "ngfx_viewport" fn viewport(x: f32, y: f32, w: f32, h: f32);
+extern fn bind(p: Pipeline) = "ngfx_bind_pipeline";
+extern fn viewport(x: f32, y: f32, w: f32, h: f32) = "ngfx_viewport";
 // w == 0: the whole target.
-extern "ngfx_scissor" fn scissor(x: i64, y: i64, w: i64, h: i64);
+extern fn scissor(x: i64, y: i64, w: i64, h: i64) = "ngfx_scissor";
 
 // `root` is a root's address (root(), frame_data()), or 0 for a shader
 // without one. SV_VertexID counts from first_vertex on Metal and from 0 on
 // Vulkan, as Slang compiles it, so a shader that fetches its own vertices
 // takes where they start from its root, or draws indexed.
-extern "ngfx_draw" fn draw(root: u64, vertices: i64, instances: i64, first_vertex: i64,
-                              first_instance: i64);
+extern fn draw(root: u64, vertices: i64, instances: i64, first_vertex: i64,
+               first_instance: i64) = "ngfx_draw";
 fn draw(root: u64, vertices: i64) { draw(root, vertices, 1, 0, 0) }
 fn draw_instanced(root: u64, vertices: i64, instances: i64) { draw(root, vertices, instances, 0, 0) }
 // Indices of index_size bytes, 2 for u16 or 4 for u32, from `indices`: a
 // buffer, or a Range such as frame_range() makes. SV_VertexID is the index,
 // plus vertex_offset on Metal only, as for draw's first_vertex.
-extern "ngfx_draw_indexed" fn draw_indexed_raw(root: u64, indices: u64, indices_size: i64,
-                                                  index_size: i64, count: i64, instances: i64,
-                                                  first_index: i64, vertex_offset: i64,
-                                                  first_instance: i64);
+extern fn draw_indexed_raw(root: u64, indices: u64, indices_size: i64,
+                           index_size: i64, count: i64, instances: i64,
+                           first_index: i64, vertex_offset: i64,
+                           first_instance: i64) = "ngfx_draw_indexed";
 fn draw_indexed(root: u64, indices: Range, index_size: i64, count: i64, instances: i64,
                 first_index: i64, vertex_offset: i64, first_instance: i64) {
     draw_indexed_raw(root, indices.address, indices.size, index_size, count, instances, first_index,
@@ -868,12 +868,12 @@ fn draw_indexed_instanced(root: u64, indices: Buffer, index_size: i64, count: i6
 struct DrawArguments { vertices: u32, instances: u32, first_vertex: u32, first_instance: u32 }
 struct DrawIndexedArguments { count: u32, instances: u32, first_index: u32, vertex_offset: i32,
                               first_instance: u32 }
-extern "ngfx_draw_indirect" fn draw_indirect(root: u64, arguments: u64, count: i64, stride: i64);
+extern fn draw_indirect(root: u64, arguments: u64, count: i64, stride: i64) = "ngfx_draw_indirect";
 fn draw_indirect(root: u64, arguments: u64) { draw_indirect(root, arguments, 1, 0) }
-extern "ngfx_draw_indexed_indirect" fn draw_indexed_indirect_raw(root: u64, indices: u64,
-                                                                    indices_size: i64,
-                                                                    index_size: i64, arguments: u64,
-                                                                    count: i64, stride: i64);
+extern fn draw_indexed_indirect_raw(root: u64, indices: u64,
+                                    indices_size: i64,
+                                    index_size: i64, arguments: u64,
+                                    count: i64, stride: i64) = "ngfx_draw_indexed_indirect";
 fn draw_indexed_indirect(root: u64, indices: Range, index_size: i64, arguments: u64, count: i64,
                          stride: i64) {
     draw_indexed_indirect_raw(root, indices.address, indices.size, index_size, arguments, count,
@@ -894,13 +894,13 @@ fn draw_indexed_indirect(root: u64, indices: Buffer, index_size: i64, arguments:
 
 // Dispatches go between passes. What a dispatch writes reaches a later pass
 // or dispatch only after a barrier (see synchronization below).
-extern "ngfx_bind_compute_pipeline" fn bind(p: ComputePipeline);
+extern fn bind(p: ComputePipeline) = "ngfx_bind_compute_pipeline";
 // Runs x * y * z thread groups of the shader's numthreads.
-extern "ngfx_dispatch" fn dispatch(root: u64, x: i64, y: i64, z: i64);
+extern fn dispatch(root: u64, x: i64, y: i64, z: i64) = "ngfx_dispatch";
 // The same, with the thread group counts a DispatchArguments at `arguments`
 // holds, which the GPU reads (see draw_indirect).
 struct DispatchArguments { x: u32, y: u32, z: u32 }
-extern "ngfx_dispatch_indirect" fn dispatch_indirect(root: u64, arguments: u64);
+extern fn dispatch_indirect(root: u64, arguments: u64) = "ngfx_dispatch_indirect";
 
 // --- synchronization -------------------------------------------------------------
 
@@ -908,7 +908,7 @@ extern "ngfx_dispatch_indirect" fn dispatch_indirect(root: u64, arguments: u64);
 // FRAGMENT_READ) when a pass samples what a dispatch wrote. Between passes
 // and dispatches, never inside a pass. Each side is barrier points
 // combined with |.
-extern "ngfx_barrier" fn barrier(before: i32, after: i32);
+extern fn barrier(before: i32, after: i32) = "ngfx_barrier";
 
 // --- mips ------------------------------------------------------------------------
 
@@ -920,7 +920,7 @@ struct MipRoot { source: u32, target: u32, level: u32, width: u32, height: u32, 
 // (native/ngfx_mips.slang), which takes a MipRoot and makes each texel of
 // a level the average of the 2 x 2 above it. It is built with the layer, not
 // embedded here, where every program importing ngfx would compile it.
-extern "ngfx_mip_pipeline" fn mip_pipeline() -> ComputePipeline;
+extern fn mip_pipeline() -> ComputePipeline = "ngfx_mip_pipeline";
 
 // Fills mips 1 and up of a 2D texture from mip 0, a compute dispatch per
 // level with a barrier between them. The texture needs SAMPLED | STORAGE
