@@ -2,7 +2,8 @@
 
 What Goose lacks for a library like this one, as of the pin. Each entry has a minimal
 case, the Goose commit it was found on, the workaround used here, and whether it has
-been reported upstream. None of the open ones blocks this repository.
+been reported upstream. None of the open ones blocks this repository. Every entry was
+checked again at the pin, `v2026.4` (`6c1fbc7`), on 2026-11-11.
 
 The entries come in two parts: [bugs](#bugs), where Goose does something wrong or other
 than its spec says, then [feature requests](#feature-requests), for what it lacks. What

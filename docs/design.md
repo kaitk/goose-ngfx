@@ -84,7 +84,8 @@ These choices follow NoGraphicsAPI rather than the rest of Goose. Each is delibe
 - **A high hardware bar**: macOS 26 and Metal 4, or Vulkan 1.4.357 with descriptor heaps,
   64-bit only, and CMake 3.25.
 - **Duplication with gfx and ui.** The platform half of `native/ngfx_platform.c` is a
-  copy of gfx's `src/gfx/gfx_device.c` with `ngfx_` names, and `ngfx_ui.goose` repeats
+  copy of gfx's `src/gfx/gfx_device.c` (`aardappel/goose_gfx` `737d91a`: fullscreen,
+  pixel density and display scale, system cursors, and gamepads) with `ngfx_` names, and `ngfx_ui.goose` repeats
   ui's 90-line input bridge. Sharing either would change Goose's gfx package.
 
 ## How it is built
@@ -185,6 +186,14 @@ compares with the `extern` declarations in `ngfx.goose`.
   draw into, so they can't drift from them, `PipelineDesc` keeps gfx's fields, and one
   pipeline can be prepared for several passes. The samples prepare theirs for the
   screen (`prepare_screen`), and `ngfx_ui::prepare()` does the same for the ui.
+- **Draw on demand is a window flag, `WINDOW_ON_DEMAND`**, not a separate call. A frame
+  that drew nothing into the screen isn't presented, and the next `frame()` waits in
+  `SDL_WaitEventTimeout` for up to a second instead of returning at once. The layer sees
+  whether a pass drew into the screen, so a program draws on demand by skipping its
+  passes when nothing changed, with no other change to its loop; a window the system
+  exposes again is presented again from the screen as it stands. The wait is capped so a program that animates on a
+  timer of its own still gets a frame a second without an event. Without the flag
+  `frame()` presents every frame, as gfx does.
 - **The name is `ngfx`.** It reads as gfx on NoGraphicsAPI. `gfx2` would presume it
   replaces gfx, `gpu` is NoGraphicsAPI's C++ namespace, and `nogfx` reads as "no graphics".
 - `CULL_BACK` with counterclockwise front faces is NoGraphicsAPI's `CullMode::clockwise`,

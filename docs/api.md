@@ -10,7 +10,7 @@ The header of `ngfx.goose` is the reference, `samples/cube.goose` a small comple
 program, and [design.md](design.md) how it works and what it costs.
 
 ```goose
-import ngfx from "github.com/kaitk/goose-ngfx@v0.2.0";
+import ngfx from "github.com/kaitk/goose-ngfx@v0.3.0";
 
 struct Root { vertices: u64, transform: ngfx::float4x4 }
 
@@ -49,8 +49,21 @@ with `goose file.goose` or builds with `goose build file.goose`
   `barrier(before, after)`. `GOOSE_NGFX_SYNC=full` adds a full barrier around each, to
   check for a missing one.
 - **`generate_mips` is a compute pass** on 2D `SAMPLED | STORAGE` textures, not sRGB.
+- **`WINDOW_ON_DEMAND` draws on demand.** With the flag, a `frame()` after a frame that
+  drew nothing into the screen presents nothing and waits for an event, up to a second,
+  so an idle program uses no GPU and next to no CPU. Any SDL event ends the wait, a
+  timer's pushed from another thread too.
 - **Main thread only**, as gfx: a `thread_fn` that reaches ngfx is a compile error, from
   `main_thread_only` in `ngfx.build`.
+
+## The platform
+
+The window, input, and time are gfx's, at `aardappel/goose_gfx` `737d91a`, under the
+same names: `open`, `frame`, keys, the mouse, touch, events, typed text, the clipboard,
+`set_fullscreen` and `maximize`, `pixel_density` and `display_scale` (the system's
+scale, reported and never applied), `set_cursor` with the `CURSOR_*` shapes, and
+gamepads in `MAX_GAMEPADS` slots (`gamepad_down`, `gamepad_axis`, `gamepad_rumble`, and
+the rest). The header of `ngfx.goose` gives each one's contract.
 
 ## Shaders
 
