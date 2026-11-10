@@ -35,7 +35,7 @@ None open.
 ### Shaders in an outside language compile at run time
 
 Found on `bab8b6f`. Status: open; planned upstream as build steps, a tool a package runs
-while the program compiles, not built on `46356c2` ([Goose package design, §11](https://github.com/aardappel/goose/blob/46356c2/docs/design/packages.md#11-deferred-and-open))
+while the program compiles, not built on `v2026.4` ([Goose package design, §11](https://github.com/aardappel/goose/blob/v2026.4/docs/design/packages.md#11-deferred-and-open))
 
 `embed_shader` compiles GLSL into the program while Goose compiles it, with Goose's
 built-in SPIR-V compiler. Nothing lets a package do the same for another language.
