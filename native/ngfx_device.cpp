@@ -282,6 +282,7 @@ extern "C" {
 bool ngfx_gpu_on_main_thread(void) { return std::this_thread::get_id() == main_thread; }
 
 bool ngfx_gpu_in_pass(void) { return g.in_pass; }
+bool ngfx_gpu_screen_drawn(void) { return g.screen_used[0]; }
 
 const char* ngfx_gpu_driver(void)
 {

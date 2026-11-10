@@ -44,6 +44,10 @@ typedef struct {
     uint64_t start_ns, last_ns;
     double delta;
     int64_t frames;
+    /* WINDOW_ON_DEMAND, and how many more frames show the screen though
+       nothing was drawn into it: the window was exposed, shown or restored. */
+    bool on_demand;
+    int expose;
 
     char error[1024];
     int64_t misuse;
@@ -209,6 +213,8 @@ static bool ngfx_start(bool windowed, ngfx_bytes title, int64_t width, int64_t h
         ngfx_update_input_scale();
         ngfx_seed_mouse();
     }
+    ngfx.on_demand = (flags & NGFX_WINDOW_ON_DEMAND) != 0;
+    ngfx.expose = 0;
     ngfx.focused = !ngfx.window || (SDL_GetWindowFlags(ngfx.window) & SDL_WINDOW_INPUT_FOCUS) != 0;
     ngfx.cursor_visible = true;
     if (ngfx.window) SDL_ShowCursor();
@@ -415,6 +421,12 @@ static void ngfx_focus(bool focused) {
     ngfx_push_event(focused ? NGFX_EVENT_FOCUS_GAINED : NGFX_EVENT_FOCUS_LOST);
 }
 
+/* The longest frame() waits for an event on demand, so a program's own
+   timing still runs; and how many frames show the screen after the window
+   is exposed. */
+#define NGFX_IDLE_WAIT_MS 1000
+#define NGFX_EXPOSE_FRAMES 2
+
 uint8_t ngfx_frame(void) {
     if (!ngfx_need_device("frame")) return 0;
     if (ngfx_gpu_in_pass()) {
@@ -422,8 +434,16 @@ uint8_t ngfx_frame(void) {
         return 0;
     }
     /* The first call starts the first frame; every later one ends one, which
-       shows it in the window. */
-    ngfx_gpu_next_frame(ngfx.window && ngfx.frames > 0);
+       shows it in the window. On demand, a frame that drew nothing into the
+       screen shows nothing new: it isn't presented, and the wait below takes
+       the place of a busy loop. */
+    bool drew = !ngfx.on_demand || ngfx_gpu_screen_drawn() || ngfx.expose > 0;
+    ngfx_gpu_next_frame(ngfx.window && ngfx.frames > 0 && drew);
+    if (ngfx.expose > 0) ngfx.expose--;
+    if (ngfx.window && ngfx.frames > 0 && !drew) {
+        SDL_WaitEventTimeout(NULL, NGFX_IDLE_WAIT_MS);
+        ngfx.last_ns = SDL_GetTicksNS(); /* delta_time() leaves out the wait */
+    }
     memset(ngfx.pressed_keys, 0, sizeof ngfx.pressed_keys);
     memset(ngfx.released_keys, 0, sizeof ngfx.released_keys);
     ngfx.pressed_buttons = ngfx.released_buttons = 0;
@@ -496,6 +516,12 @@ uint8_t ngfx_frame(void) {
             case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
                 ngfx_update_input_scale();
                 resized = true;
+                ngfx.expose = NGFX_EXPOSE_FRAMES;
+                break;
+            case SDL_EVENT_WINDOW_EXPOSED:
+            case SDL_EVENT_WINDOW_SHOWN:
+            case SDL_EVENT_WINDOW_RESTORED:
+                ngfx.expose = NGFX_EXPOSE_FRAMES;
                 break;
             default:
                 if (ngfx.inject_event && e.type == ngfx.inject_event && e.user.code >= 0 &&

@@ -72,6 +72,11 @@ import math;
 let WINDOW_RESIZABLE: i32 = 1;
 let WINDOW_HIDDEN: i32 = 2;
 let WINDOW_FULLSCREEN: i32 = 4;
+// Draws on demand: a frame() after a frame that drew nothing into the screen
+// presents nothing and waits for an event (up to a second) instead of
+// returning at once, so an idle program uses no GPU and next to no CPU.
+// Any SDL event ends the wait, a timer's own too.
+let WINDOW_ON_DEMAND: i32 = 64;
 
 // Texture kinds.
 let TEXTURE_2D: i32 = 0;

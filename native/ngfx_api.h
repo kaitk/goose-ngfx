@@ -210,6 +210,7 @@ NGFX_API(NGFX_PROTO)
     X(i32, WINDOW_RESIZABLE, 1) \
     X(i32, WINDOW_HIDDEN, 2) \
     X(i32, WINDOW_FULLSCREEN, 4) \
+    X(i32, WINDOW_ON_DEMAND, 64) \
     /* Texture kinds. */ \
     X(i32, TEXTURE_2D, 0) \
     X(i32, TEXTURE_2D_ARRAY, 1) \

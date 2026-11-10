@@ -52,6 +52,8 @@ void ngfx_gpu_next_frame(bool present);
 /* Replaces the screen's textures with ones of w x h pixels, keeping their
    handles. */
 bool ngfx_gpu_resize(int w, int h);
+/* Whether this frame has drawn into the screen. */
+bool ngfx_gpu_screen_drawn(void);
 /* Inside a render pass. */
 bool ngfx_gpu_in_pass(void);
 /* Submits what has been recorded and waits for the GPU to finish it. */
