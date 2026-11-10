@@ -320,11 +320,9 @@ bool ngfx_gpu_open(void* layer, int w, int h)
     g.device = init.device;
     g.timeline.semaphore = create_timeline_semaphore(g.device);
     g.frame_heap = create_gpu_heap(g.device, frame_memory_size * frames_in_flight, MemoryType::cpu_visible);
-    g.texture_heap = create_texture_heap(g.device, texture_heap_size);
     g.texture_descriptors = create_texture_descriptor_heap(g.device, texture_descriptors);
     g.sampler_descriptors = create_sampler_descriptor_heap(g.device, sampler_descriptors);
-    if (!g.timeline.semaphore || !g.frame_heap.owner || !g.texture_heap.owner || !g.texture_descriptors ||
-        !g.sampler_descriptors)
+    if (!g.timeline.semaphore || !g.frame_heap.owner || !g.texture_descriptors || !g.sampler_descriptors)
     {
         if (!ngfx_error_text()[0]) ngfx_fail("creating the device's resources");
         return false;
@@ -340,7 +338,6 @@ bool ngfx_gpu_open(void* layer, int w, int h)
     g.uploads = new UploadQueue(g.device, upload_capacity, 0, upload_batches);
     if (!g.uploads->valid()) return ngfx_fail("creating the upload queue");
     g.deletes = new DeleteQueue(g.timeline.semaphore, delete_capacity);
-    g.texture_allocator = new TextureAllocator(g.device, g.texture_heap, max_textures);
     g.texture_slots.capacity = texture_descriptors;
     g.sampler_slots.capacity = sampler_descriptors;
     for (int i = 0; i < 2; ++i)
@@ -393,14 +390,21 @@ void ngfx_gpu_close(void)
     });
     for (HeapAllocator* a : g.buffer_allocators) delete a;
     for (const GpuHeap& h : g.buffer_heaps) destroy_gpu_heap(h);
-    delete g.texture_allocator;
+    for (size_t i = 0; i < g.texture_allocators.size(); ++i)
+    {
+        if (!g.texture_allocators[i]) continue;
+        delete g.texture_allocators[i];
+        destroy_texture_heap(g.texture_heaps[i]);
+    }
+    g.texture_heaps.clear();
+    g.texture_allocators.clear();
+    g.texture_alone.clear();
     for (uint32 i = 0; i < frames_in_flight; ++i)
     {
         delete g.frame_data[i];
         destroy_command_pool(g.pools[i]);
     }
     destroy_gpu_heap(g.frame_heap);
-    destroy_texture_heap(g.texture_heap);
     destroy_texture_descriptor_heap(g.texture_descriptors);
     destroy_sampler_descriptor_heap(g.sampler_descriptors);
     destroy_timeline_semaphore(g.timeline.semaphore);

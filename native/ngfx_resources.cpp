@@ -129,11 +129,76 @@ RenderView* render_view(TextureSlot* s, uint32 mip, uint32 slice)
     return view;
 }
 
+// A texture placed in a chunk of texture memory, made when none has room, or
+// in a heap of its own when it takes more than half of one; `chunk` says
+// which, for unplace_texture. Texture memory then costs what the textures
+// take, not a fixed block made at open.
+PlacedTexture place_texture(CommandBuffer* setup, const TextureDesc& desc, int32& chunk)
+{
+    const SizeAlign need = get_texture_size_align(g.device, desc);
+    const bool alone = need.size > texture_chunk_size / 2;
+    if (!alone)
+    {
+        for (size_t i = 0; i < g.texture_allocators.size(); ++i)
+        {
+            if (!g.texture_allocators[i] || g.texture_alone[i]) continue;
+            const PlacedTexture p = g.texture_allocators[i]->allocate(setup, desc);
+            if (p.texture)
+            {
+                chunk = int32(i);
+                return p;
+            }
+        }
+    }
+    const uint64 align = need.align ? need.align : 1;
+    const uint64 size = alone ? (need.size + align - 1) / align * align : texture_chunk_size;
+    const TextureHeap heap = create_texture_heap(g.device, size);
+    if (!heap.owner) return {};
+    TextureAllocator* a = new TextureAllocator(g.device, heap, alone ? 1 : texture_chunk_textures);
+    const PlacedTexture p = a->allocate(setup, desc);
+    if (!p.texture)
+    {
+        delete a;
+        destroy_texture_heap(heap);
+        return {};
+    }
+    // A chunk given back leaves its index free.
+    size_t i = 0;
+    while (i < g.texture_allocators.size() && g.texture_allocators[i]) ++i;
+    if (i == g.texture_allocators.size())
+    {
+        g.texture_heaps.push_back(heap);
+        g.texture_allocators.push_back(a);
+        g.texture_alone.push_back(alone);
+    }
+    else
+    {
+        g.texture_heaps[i] = heap;
+        g.texture_allocators[i] = a;
+        g.texture_alone[i] = alone;
+    }
+    chunk = int32(i);
+    return p;
+}
+
+// Gives back what place_texture took, once the GPU has done with the texture:
+// a heap of its own goes with it.
+void unplace_texture(PlacedTexture& p, int32 chunk)
+{
+    if (chunk < 0 || !p.texture) return;
+    g.texture_allocators[size_t(chunk)]->free(p);
+    if (!g.texture_alone[size_t(chunk)]) return;
+    delete g.texture_allocators[size_t(chunk)];
+    destroy_texture_heap(g.texture_heaps[size_t(chunk)]);
+    g.texture_allocators[size_t(chunk)] = nullptr;
+    g.texture_heaps[size_t(chunk)] = {};
+}
+
 void free_texture(TextureSlot& s)
 {
     for (const RenderViewEntry& e : s.views) destroy_render_view(e.view);
     s.views.clear();
-    g.texture_allocator->free(s.placed);
+    unplace_texture(s.placed, s.chunk);
     g.texture_slots.free(s.sampled);
     g.texture_slots.free(s.storage);
     for (uint32 slot : s.storage_mips) g.texture_slots.free(slot);
@@ -199,7 +264,8 @@ bool create_texture(const ngfx_texture_desc& in, uint32* id, TextureSlot** out)
     // Texture initialization in a submission of its own, before any upload
     // can reach it, as examples/cube submits its texture's before uploading.
     CommandBuffer* setup = begin_setup();
-    const PlacedTexture placed = g.texture_allocator->allocate(setup, nd);
+    int32 chunk = -1;
+    const PlacedTexture placed = place_texture(setup, nd, chunk);
     end_setup(setup);
     if (!placed.texture) return ngfx_fail("out of texture memory for a %d x %d texture", d.width, d.height);
 
@@ -207,10 +273,11 @@ bool create_texture(const ngfx_texture_desc& in, uint32* id, TextureSlot** out)
     if (!s)
     {
         PlacedTexture p = placed;
-        g.texture_allocator->free(p);
+        unplace_texture(p, chunk);
         return false;
     }
     s->placed = placed;
+    s->chunk = chunk;
     s->desc = nd;
     s->goose = d;
     if (usage & NGFX_SAMPLED)

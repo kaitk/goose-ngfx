@@ -193,10 +193,10 @@ compares with the `extern` declarations in `ngfx.goose`.
 
 ### Memory and submission
 
-- **Memory is fixed-size**, suballocated with NoGraphicsAPIUtility's allocators: buffers
-  from 64 MB chunks (larger ones get their own heap), textures from one 512 MB heap, 16 MB
-  of frame memory per frame in flight (running out is a misuse), 8192 texture and 1024
-  sampler descriptors. Releases wait in a `DeleteQueue`.
+- **Memory grows in chunks**, suballocated with NoGraphicsAPIUtility's allocators:
+  buffers and textures from 64 MB chunks made as they fill (one over half a chunk gets a
+  heap of its own, given back with it). The rest is fixed: 16 MB of frame memory per
+  frame in flight (running out is a misuse), 8192 texture and 1024 sampler descriptors. Releases wait in a `DeleteQueue`.
 - **All GPU work runs on queue zero.** No program in the acceptance set needs async
   compute, and on M1 NoGraphicsAPI leaves open whether its queues are independent
   engines, so no gain could be measured. Adding it later extends the surface without

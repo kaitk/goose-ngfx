@@ -145,6 +145,7 @@ struct RenderViewEntry
 struct TextureSlot
 {
     PlacedTexture placed{};
+    int32 chunk = -1;               // the texture memory it is placed in (place_texture)
     TextureDesc desc{};             // NoGraphicsAPI's
     ngfx_texture_desc goose{};   // as the program sees it, mips resolved
     uint32 sampled = UINT32_MAX;    // descriptor slots, or UINT32_MAX for none
@@ -214,8 +215,10 @@ constexpr uint32 frames_in_flight = 2;
 constexpr uint64 frame_memory_size = 16ull << 20;    // per frame in flight
 constexpr uint64 buffer_chunk_size = 64ull << 20;
 constexpr uint32 buffer_chunk_allocations = 4096;
-constexpr uint64 texture_heap_size = 512ull << 20;
-constexpr uint32 max_textures = 4096;
+// Texture memory grows a chunk at a time, as buffer memory does: a texture
+// over half a chunk gets a heap of its own.
+constexpr uint64 texture_chunk_size = 64ull << 20;
+constexpr uint32 texture_chunk_textures = 1024;
 constexpr uint32 texture_descriptors = 8192;
 constexpr uint32 sampler_descriptors = 1024;
 constexpr uint64 upload_capacity = 32ull << 20;
@@ -274,8 +277,11 @@ struct State
 
     std::vector<GpuHeap> buffer_heaps;
     std::vector<HeapAllocator*> buffer_allocators;
-    TextureHeap texture_heap{};
-    TextureAllocator* texture_allocator = nullptr;
+    // Texture memory: a chunk's heap and allocator by index, and whether it
+    // holds one texture alone, given back with it (null once it is).
+    std::vector<TextureHeap> texture_heaps;
+    std::vector<TextureAllocator*> texture_allocators;
+    std::vector<bool> texture_alone;
     TextureDescriptorHeap* texture_descriptors = nullptr;
     SamplerDescriptorHeap* sampler_descriptors = nullptr;
     SlotAllocator texture_slots;
