@@ -1,6 +1,7 @@
 [submodule "third_party/NoGraphicsAPI"]
 	path = third_party/NoGraphicsAPI
 	url = https://github.com/kaitk/NoGraphicsAPI
+	branch = ngfx
 [submodule "third_party/SDL"]
 	path = third_party/SDL
 	url = https://github.com/libsdl-org/SDL

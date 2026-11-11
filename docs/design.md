@@ -13,11 +13,13 @@ time, the screen, textures, read-back) and draws the way NoGraphicsAPI does: a d
 the GPU address of a root struct the program fills and shares with its shader, and
 shaders fetch their own vertices through pointers.
 
-The submodule is a fork, `kaitk/NoGraphicsAPI`: upstream at the pinned commit, plus what
-ngfx needs that NoGraphicsAPI lacks, each change a branch of its own, kept small and
-general so it can be offered upstream (2026-11-11). Its first is ASTC 6 × 6 (`astc-6x6`),
-the block size Draughts' photographs use. A change ngfx can make in its own layer stays
-there; the fork is for what only NoGraphicsAPI can do.
+The submodule is a fork, `kaitk/NoGraphicsAPI`, for what ngfx needs that NoGraphicsAPI
+lacks (2026-11-11). Each change is a branch of its own on upstream's `main`, small and
+general, so it can be offered upstream as a pull request; the fork's `ngfx` branch is the
+upstream commit ngfx pins with every such change merged, and the submodule follows it.
+`main` mirrors upstream. The first change is ASTC 6 × 6 (`astc-6x6`), the block size
+Draughts' photographs use. A change ngfx can make in its own layer stays there; the fork
+is for what only NoGraphicsAPI can do.
 
     Goose program --extern fn--> ngfx_* (native/, C and C++) --> NoGraphicsAPI (static)
 

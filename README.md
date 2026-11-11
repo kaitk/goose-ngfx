@@ -137,7 +137,7 @@ cd samples; & $env:GOOSE mini_minecraft.goose
 | What | Pin | Why |
 |---|---|---|
 | Goose | `aardappel/goose` `v2026.4` (`6c1fbc7`, 2026-11-05): the compiler tested with | The language, the package system, and the runtime ABI change often |
-| NoGraphicsAPI | `kaitk/NoGraphicsAPI` `a6e78ed`: `sebbbi/NoGraphicsAPI` `0400414` with ASTC 6 × 6 added | Its API is young and changes without notice; the fork holds what ngfx needs before upstream has it |
+| NoGraphicsAPI | `kaitk/NoGraphicsAPI` `ngfx`, `a6e78ed`: `sebbbi/NoGraphicsAPI` `0400414` with ASTC 6 × 6 added | Its API is young and changes without notice; the fork holds what ngfx needs before upstream has it |
 | SDL | `libsdl-org/SDL` `fa2c02b`, the commit `aardappel/goose_gfx` `v1` pins | A program that also imports `audio` or `ui` links both packages' SDL ([design](docs/design.md#how-it-is-built)) |
 
 Move a pin in its own commit, with the test results that still hold
