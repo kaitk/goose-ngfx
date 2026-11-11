@@ -92,6 +92,19 @@ cmake --build ..\goose\build --config Release
 $env:GOOSE = (Resolve-Path "..\goose\build\Release\goose.exe").Path
 ```
 
+## iOS and iPadOS
+
+The package's CMake builds for iOS 26 on the device (`-DCMAKE_SYSTEM_NAME=iOS
+-DCMAKE_OSX_SYSROOT=iphoneos -DCMAKE_OSX_ARCHITECTURES=arm64
+-DCMAKE_OSX_DEPLOYMENT_TARGET=26.0`), its shaders' metallibs compiled for `iphoneos`.
+Goose builds no iOS app itself, so a program's own build adds this CMake project and
+links the target `ngfx`, with the `goose.h` the compiler wrote for a Mac build on its
+include path. iOS runs no subprocess, so `ngfx::slang` fails there: compile each module
+ahead on a Mac with `NGFX_METAL_SDK=iphoneos` set, which makes `ngfx::slang_file` write
+the blob's metallib for iOS, and embed the blob. The window is a `CAMetalLayer`, gfx's
+`native_window()` opened `WINDOW_ONLY`. Tested on an iPhone 13 mini (A15, iOS 26) by
+Draughts (2026-11-11): 60 fps; the simulator untried.
+
 ## How a program is built
 
 ngfx is a Goose package: `ngfx.goose` and `ngfx_ui.goose` at the root, and `ngfx.build`,
