@@ -348,7 +348,8 @@ bool ngfx_gpu_open(void* layer, int w, int h)
     g.bench = bench && !strcmp(bench, "1");
     // The screen is copied as it is, so the window's image has its format,
     // without sRGB conversion, as gfx's swapchain is.
-    const DeviceInit init = create_device({.window = layer, .swapchain_format = layer ? Format::bgra8_unorm : Format::undefined});
+    const DeviceInit init = create_device({.window = layer, .swapchain_format = layer ? Format::bgra8_unorm : Format::undefined,
+                                           .desired_swapchain_image_count = 3});
     if (!init.device)
     {
         char why[512];
