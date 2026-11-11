@@ -154,7 +154,7 @@ compares with the `extern` declarations in `ngfx.goose`.
   than triangles, wireframe, MSAA, and the `NO_VSYNC` and `DEBUG` flags.
 - **Every texture gets a descriptor slot** in heaps the module owns. NoGraphicsAPI leaves
   heaps to the application, but gfx programs never managed them.
-- **In a window, the screen is the window's image** (2026-11-12), replacing an offscreen
+- **In a window, the screen is the window's image** (2026-11-11), replacing an offscreen
   RGBA8 texture and its spare per frame in flight, copied into the image by a fullscreen
   draw at `present()`: 48 MB at 2560 × 1600 and a pass a frame, which made Draughts'
   2D game hold 52 MB more than on gfx. The handle's slot describes the image (BGRA8, the
@@ -233,7 +233,7 @@ compares with the `extern` declarations in `ngfx.goose`.
   of 128-byte callbacks held 9 MB at the 65,536 entries a burst of releases needs.
   Timestamp storage is reserved only under `GOOSE_NGFX_BENCH`. Fixed, as measured too
   small to size: 8192 texture and 1024 sampler descriptors (72 KB on Metal).
-- **The first idle frame gives back the driver's memory for recording** (2026-11-12). A
+- **The first idle frame gives back the driver's memory for recording** (2026-11-11). A
   Metal 4 command allocator keeps the most memory it was ever recorded into, and
   resetting it returns none, so the frames that set a program up (textures initialized,
   photographs uploaded in parts) held their command memory for good: 11 MB of the 20 MB
