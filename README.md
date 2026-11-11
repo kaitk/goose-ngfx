@@ -25,7 +25,7 @@ Declare the package in your program's root file, and import it:
 
 ```goose
 import vec;
-import ngfx from "github.com/kaitk/goose-ngfx@v0.4.0";
+import ngfx from "github.com/kaitk/goose-ngfx@v0.5.0";
 import gfx from "github.com/kaitk/goose_gfx@ngfx";      // gfx with WINDOW_ONLY
 
 fn main() {
@@ -36,14 +36,16 @@ fn main() {
         ngfx::resize(gfx::screen_size());
         ngfx::begin_screen(float4 { 0.1, 0.2, 0.3, 1.0 });
         ngfx::end_pass();
-        gfx::presented(ngfx::present(gfx::needs_present()));
+        gfx::presented(ngfx::present());
     }
 }
 ```
 
 gfx's `WINDOW_ONLY` opens the window with no GPU device of its own, and runs input,
 events, time, and the wait of an idle program; ngfx presents, and tells gfx whether it
-did. Goose's own gfx doesn't have `WINDOW_ONLY` yet, so a program takes gfx from
+did. A program that draws only when something changed also draws when
+`gfx::needs_present()` says the window was exposed or resized: ngfx draws straight into
+the window's image and keeps no copy to show again. Goose's own gfx doesn't have `WINDOW_ONLY` yet, so a program takes gfx from
 `kaitk/goose_gfx`'s `ngfx` branch until it does.
 
 `goose hello.goose` runs it in the compiler's process; `goose build hello.goose` makes an
@@ -60,10 +62,11 @@ Goose's `ui` through ngfx ([docs/api.md](docs/api.md#ngfx_ui)).
 
 ## Status
 
-Version 0.4.0: the API may still change. Built and tested on macOS 26 with Metal 4 (M1
+Version 0.5.0: the API may still change. Built and tested on macOS 26 with Metal 4 (M1
 Pro) at the Goose pin below: the API check, every test, and every sample pass, run in
-the compiler and built. Windows with Vulkan passed at v0.3.0 and is not yet run at this
-release, which changes how ngfx gets its window. On Linux, ngfx builds and runs headless only, since NoGraphicsAPI can't present
+the compiler and built. iOS 26 runs on an iPhone 13 mini (A15), in Draughts; iPadOS
+builds the same and is untried. Windows with Vulkan passed at v0.3.0 and is not yet run
+at v0.4.0 or this release, which change how ngfx gets its window and presents. On Linux, ngfx builds and runs headless only, since NoGraphicsAPI can't present
 there, and needs a GPU whose Vulkan driver has `VK_EXT_descriptor_heap` (Mesa RADV
 26.2 or later, or NVIDIA's). The Linux build is tested in WSL, which has no such
 driver, so there the GPU tests skip.
