@@ -11,9 +11,13 @@
 //   NGFX_NOGRAPHICSAPI   NoGraphicsAPI's source tree, for the includes
 //                        <NoGraphicsAPI/shader.slang> and
 //                        <NoGraphicsAPIUtility/shader_types.h>
+//   NGFX_METAL_SDK       the SDK the metallib is for, `macosx` unless set:
+//                        `iphoneos` makes blobs for iOS and iPadOS, whose
+//                        Metal loads no macOS metallib
 //
 // The blob always holds SPIR-V, and a metallib on a Mac, where that is the
-// backend a program runs on.
+// backend a program runs on. iOS runs no subprocess: there the program
+// takes blobs compiled ahead on a Mac, and slang() fails, saying so.
 
 #include <algorithm>
 #include <atomic>
@@ -30,6 +34,9 @@
 #include "ngfx_blob.h"
 #include "ngfx_internal.h"
 
+#ifdef __APPLE__
+    #include <TargetConditionals.h>
+#endif
 #ifdef _WIN32
     #include <process.h>
     #define NGFX_POPEN _popen
@@ -121,13 +128,20 @@ bool run_tool(const vector<string> &argv, string &out) {
         cmd = '"' + cmd + '"';   // cmd /c strips one pair of quotes around the whole.
     #endif
     out.clear();
-    FILE *p = NGFX_POPEN(cmd.c_str(), "r");
-    if (!p) return false;
-    char buf[4096];
-    size_t n;
-    while ((n = fread(buf, 1, sizeof buf, p)) > 0) out.append(buf, n);
-    return NGFX_PCLOSE(p) == 0;
+    #if defined(__APPLE__) && TARGET_OS_IPHONE
+        out = "iOS runs no subprocess";
+        return false;
+    #else
+        FILE *p = NGFX_POPEN(cmd.c_str(), "r");
+        if (!p) return false;
+        char buf[4096];
+        size_t n;
+        while ((n = fread(buf, 1, sizeof buf, p)) > 0) out.append(buf, n);
+        return NGFX_PCLOSE(p) == 0;
+    #endif
 }
+
+string metal_sdk() { return tool("NGFX_METAL_SDK", nullptr, "macosx"); }
 
 // Just enough JSON for slangc's reflection: its entry points' names, stages
 // and thread group sizes.
@@ -281,6 +295,11 @@ bool fail(const string &msg) { return ngfx_fail("%s", msg.c_str()); }
 // with #include also looking in `includedir`; or false with ngfx_error set,
 // to "path:line: error: message" when slangc says where.
 bool compile_file(const string &path, const string &includedir, gs_rref result) {
+    #if defined(__APPLE__) && TARGET_OS_IPHONE
+        (void)path; (void)includedir; (void)result;
+        return fail("ngfx::slang runs no shader compiler on iOS: compile the module ahead on a "
+                    "Mac (ngfx::slang_file with NGFX_METAL_SDK=iphoneos) and embed the blob");
+    #endif
     Temp tmp;
     auto slangc = slangc_path();
     vector<string> common = { slangc, path, "-fvk-use-c-layout", "-matrix-layout-row-major" };
@@ -356,11 +375,12 @@ bool compile_file(const string &path, const string &includedir, gs_rref result) 
         argv.push_back("-o");
         argv.push_back(tmp("module.metal"));
         if (!run_tool(argv, out)) return fail(slang_message(out));
-        if (!run_tool({ "xcrun", "-sdk", "macosx", "metal", "-std=metal4.0", "-c",
+        auto sdk = metal_sdk();
+        if (!run_tool({ "xcrun", "-sdk", sdk, "metal", "-std=metal4.0", "-c",
                         tmp("module.metal"), "-o", tmp("module.air") }, out))
             return fail("Xcode's Metal compiler failed on slangc's output (install it with "
                         "xcodebuild -downloadComponent MetalToolchain): " + slang_message(out));
-        if (!run_tool({ "xcrun", "-sdk", "macosx", "metallib", tmp("module.air"), "-o",
+        if (!run_tool({ "xcrun", "-sdk", sdk, "metallib", tmp("module.air"), "-o",
                         tmp("module.metallib") }, out))
             return fail("metallib failed: " + slang_message(out));
         if (!load_file(tmp("module.metallib"), metallib)) return fail("metallib wrote nothing");

@@ -60,9 +60,16 @@ endif()
 if(NOT APPLE AND NOT WIN32)
     message(STATUS "ngfx: headless only on ${CMAKE_SYSTEM_NAME}, where NoGraphicsAPI can't present")
 endif()
+# The SDK the metallibs are compiled for: a metallib loads only on the system it
+# was made for, so iOS and iPadOS take iphoneos's.
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(NGFX_METAL_SDK iphoneos)
+else()
+    set(NGFX_METAL_SDK macosx)
+endif()
 if(APPLE)
     if(NOT NGFX_METAL_CHECKED)
-        execute_process(COMMAND xcrun -sdk macosx metal --version RESULT_VARIABLE metal_result
+        execute_process(COMMAND xcrun -sdk ${NGFX_METAL_SDK} metal --version RESULT_VARIABLE metal_result
                         OUTPUT_QUIET ERROR_QUIET)
         if(NOT metal_result EQUAL 0)
             message(FATAL_ERROR "No Metal toolchain (xcodebuild -downloadComponent MetalToolchain)")
@@ -95,8 +102,8 @@ function(ngfx_layer_shader name)
             COMMAND "${CMAKE_COMMAND}" -E make_directory "${NGFX_OUT}"
             COMMAND "${NGFX_SLANGC}" "${source}" -target metal -DNOGRAPHICSAPI_METAL ${ngfx_shader_options}
                     -o "${NGFX_OUT}/${name}.metal"
-            COMMAND xcrun -sdk macosx metal -std=metal4.0 -c "${NGFX_OUT}/${name}.metal" -o "${NGFX_OUT}/${name}.air"
-            COMMAND xcrun -sdk macosx metallib "${NGFX_OUT}/${name}.air" -o "${bin}"
+            COMMAND xcrun -sdk ${NGFX_METAL_SDK} metal -std=metal4.0 -c "${NGFX_OUT}/${name}.metal" -o "${NGFX_OUT}/${name}.air"
+            COMMAND xcrun -sdk ${NGFX_METAL_SDK} metallib "${NGFX_OUT}/${name}.air" -o "${bin}"
             DEPENDS "${source}" "${NGFX_NG}/include/NoGraphicsAPI/shader.slang"
             VERBATIM
             COMMENT "Compiling ngfx's ${name} to a metallib")
