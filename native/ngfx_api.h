@@ -187,6 +187,7 @@ typedef struct {
     X(uint32_t, ngfx_storage_index, (ngfx_texture t)) \
     X(uint32_t, ngfx_storage_mip_index, (ngfx_texture t, int64_t mip)) \
     X(void, ngfx_release_texture, (ngfx_texture t)) \
+    X(uint8_t, ngfx_format_supported, (int32_t format, int32_t usage)) \
     X(ngfx_sampler, ngfx_create_sampler, (const ngfx_sampler_desc *desc)) \
     X(uint32_t, ngfx_sampler_index, (ngfx_sampler s)) \
     X(void, ngfx_release_sampler, (ngfx_sampler s)) \
@@ -279,6 +280,13 @@ NGFX_API(NGFX_PROTO)
     X(i32, DEPTH32F, 18) \
     X(i32, DEPTH24_STENCIL8, 19) \
     X(i32, DEPTH, 20) \
+    /* Block-compressed, SAMPLED only and uploaded in whole blocks: BC on \
+       desktop GPUs, ASTC on Apple silicon and phones (format_supported says). \
+       gfx's numbers; gfx's BC1, ASTC_5x5 and ASTC_8x8 NoGraphicsAPI lacks. */ \
+    X(i32, BC3, 22) \
+    X(i32, BC7, 23) \
+    X(i32, ASTC_4x4, 24) \
+    X(i32, ASTC_6x6, 26) \
     /* Samplers. */ \
     X(i32, NEAREST, 0) \
     X(i32, LINEAR, 1) \

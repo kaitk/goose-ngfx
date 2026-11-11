@@ -133,6 +133,12 @@ let DEPTH16: i32 = 16;
 let DEPTH32F: i32 = 18;
 let DEPTH24_STENCIL8: i32 = 19;
 let DEPTH: i32 = 20;
+// Block-compressed, SAMPLED only and uploaded in whole blocks: BC on desktop
+// GPUs, ASTC on Apple silicon and phones. format_supported says which.
+let BC3: i32 = 22;
+let BC7: i32 = 23;
+let ASTC_4x4: i32 = 24;
+let ASTC_6x6: i32 = 26;
 
 // Samplers.
 let NEAREST: i32 = 0;
@@ -710,6 +716,9 @@ extern fn index(t: Texture) -> u32 = "ngfx_texture_index";
 extern fn storage_index(t: Texture) -> u32 = "ngfx_storage_index";
 extern fn storage_index(t: Texture, mip: i64) -> u32 = "ngfx_storage_mip_index";
 extern fn release(t: Texture) = "ngfx_release_texture";
+// Whether this device makes a 2D texture of `format` with `usage`: what a
+// compressed format needs asking before use, and a fallback is chosen by.
+extern fn format_supported(format: i32, usage: i32) -> bool = "ngfx_format_supported";
 
 // The bytes one texel of `format` takes.
 fn texel_size(format: i32) -> i64 {

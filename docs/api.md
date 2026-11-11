@@ -49,6 +49,11 @@ with `goose file.goose` or builds with `goose build file.goose`
   `barrier(before, after)`. `GOOSE_NGFX_SYNC=full` adds a full barrier around each, to
   check for a missing one.
 - **`generate_mips` is a compute pass** on 2D `SAMPLED | STORAGE` textures, not sRGB.
+- **Block-compressed textures**: `BC3`, `BC7`, `ASTC_4x4`, and `ASTC_6x6`, gfx's numbers
+  for the formats NoGraphicsAPI has. They are `SAMPLED` only, uploaded in whole blocks (a
+  region starts on a block; the mip's edge may cut its last ones), never read back, and
+  have no generated mips. `format_supported(format, usage)` says whether the device takes
+  one: ASTC on Apple silicon and phones, BC on desktop GPUs.
 - **`WINDOW_ON_DEMAND` draws on demand.** With the flag, a `frame()` after a frame that
   drew nothing into the screen presents nothing and waits for an event, up to a second,
   so an idle program uses no GPU and next to no CPU. Any SDL event ends the wait, a

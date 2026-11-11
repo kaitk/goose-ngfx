@@ -16,6 +16,19 @@ int32 mip_size(int32 size, int32 mip)
 }
 
 bool is_depth(Format f) { return get_texture_format_info(f).depth || get_texture_format_info(f).stencil; }
+bool is_compressed(Format f) { return get_texture_format_info(f).block_extent.x > 1; }
+
+// Every color texture can be updated and read back, as gfx's can. Depth
+// can be neither, and both backends refuse transfer usage on depth/stencil.
+TextureUsage usage_of(uint32 usage, bool depth)
+{
+    TextureUsage nu = depth ? TextureUsage::none : TextureUsage::transfer_source | TextureUsage::transfer_destination;
+    if (usage & NGFX_SAMPLED) nu = nu | TextureUsage::sampled;
+    if (usage & NGFX_COLOR_TARGET) nu = nu | TextureUsage::color_attachment;
+    if (usage & NGFX_DEPTH_TARGET) nu = nu | TextureUsage::depth_stencil_attachment;
+    if (usage & NGFX_STORAGE) nu = nu | TextureUsage::storage;
+    return nu;
+}
 
 BufferSlot* buffer_slot(ngfx_buffer b) { return g.buffers.get(b.id); }
 
@@ -109,6 +122,10 @@ bool texture_format(int32 goose, Format* out)
     case NGFX_DEPTH32F:
     case NGFX_DEPTH: *out = Format::d32_float; return true;
     case NGFX_DEPTH24_STENCIL8: *out = Format::d24_unorm_s8_uint; return true;
+    case NGFX_BC3: *out = Format::bc3_unorm; return true;
+    case NGFX_BC7: *out = Format::bc7_unorm; return true;
+    case NGFX_ASTC_4x4: *out = Format::astc_4x4_unorm; return true;
+    case NGFX_ASTC_6x6: *out = Format::astc_6x6_unorm; return true;
     default: return false;
     }
 }
@@ -237,14 +254,9 @@ bool create_texture(const ngfx_texture_desc& in, uint32* id, TextureSlot** out)
     const bool depth = is_depth(format);
     if (depth != ((usage & NGFX_DEPTH_TARGET) != 0))
         return ngfx_misuse(depth ? "a depth format needs DEPTH_TARGET usage" : "DEPTH_TARGET usage needs a depth format");
+    if (is_compressed(format) && usage != NGFX_SAMPLED) return ngfx_misuse("a compressed texture can only be SAMPLED");
 
-    // Every color texture can be updated and read back, as gfx's can. Depth
-    // can be neither, and both backends refuse transfer usage on depth/stencil.
-    TextureUsage nu = depth ? TextureUsage::none : TextureUsage::transfer_source | TextureUsage::transfer_destination;
-    if (usage & NGFX_SAMPLED) nu = nu | TextureUsage::sampled;
-    if (usage & NGFX_COLOR_TARGET) nu = nu | TextureUsage::color_attachment;
-    if (usage & NGFX_DEPTH_TARGET) nu = nu | TextureUsage::depth_stencil_attachment;
-    if (usage & NGFX_STORAGE) nu = nu | TextureUsage::storage;
+    const TextureUsage nu = usage_of(usage, depth);
     // Metal, and some Vulkan GPUs, have no 24-bit depth; gfx's DEPTH falls
     // back the same way when its first choice is missing.
     if (format == Format::d24_unorm_s8_uint && !supports_texture_format(g.device, format, nu))
@@ -329,7 +341,13 @@ bool region_of(TextureSlot* s, const ngfx_region* r, TextureCopyDesc* out, const
 
 bool region_bytes(TextureSlot* s, const TextureCopyDesc& c, int64_t len, const char* what)
 {
-    const int64_t want = int64_t(get_texture_format_info(s->desc.format).bytes_per_block) * c.extent.x * c.extent.y *
+    // Whole blocks: a compressed region starts on a block and its edges round
+    // up to blocks, which only the mip's own edge may cut.
+    const TextureFormatInfo f = get_texture_format_info(s->desc.format);
+    const uint32 bw = f.block_extent.x, bh = f.block_extent.y;
+    if (c.offset.x % bw || c.offset.y % bh)
+        return ngfx_misuse("%s: region %u,%u does not start on a %u x %u block", what, c.offset.x, c.offset.y, bw, bh);
+    const int64_t want = int64_t(f.bytes_per_block) * ((c.extent.x + bw - 1) / bw) * ((c.extent.y + bh - 1) / bh) *
                          c.extent.z;
     if (len != want)
         return ngfx_misuse("%s: %lld bytes for a %u x %u x %u region of %lld", what, (long long)len, c.extent.x, c.extent.y,
@@ -340,6 +358,7 @@ bool region_bytes(TextureSlot* s, const TextureCopyDesc& c, int64_t len, const c
 bool readable(TextureSlot* s, const char* what)
 {
     if (is_depth(s->desc.format)) return ngfx_misuse("%s: a depth texture cannot be read back", what);
+    if (is_compressed(s->desc.format)) return ngfx_misuse("%s: a compressed texture cannot be read back", what);
     return true;
 }
 
@@ -528,6 +547,18 @@ uint8_t ngfx_save_png(ngfx_texture t, ngfx_bytes path)
     char buf[1024];
     return ngfx_png_save(ngfx_cstr(path, buf, sizeof buf), pixels.data(), int(c.extent.x), int(c.extent.y),
                          f == Format::bgra8_unorm);
+}
+
+uint8_t ngfx_format_supported(int32_t format, int32_t usage)
+{
+    if (!ngfx_need_device("format_supported")) return 0;
+    Format f;
+    if (!texture_format(format, &f) || !usage || (uint32(usage) & ~15u)) return 0;
+    if (is_compressed(f) && usage != NGFX_SAMPLED) return 0;
+    if (is_depth(f) != ((usage & NGFX_DEPTH_TARGET) != 0)) return 0;
+    const TextureUsage nu = usage_of(uint32(usage), is_depth(f));
+    if (f == Format::d24_unorm_s8_uint && !supports_texture_format(g.device, f, nu)) f = Format::d32_float_s8_uint;
+    return supports_texture_format(g.device, f, nu);
 }
 
 uint8_t ngfx_texture_info(ngfx_texture t, ngfx_texture_desc* out)

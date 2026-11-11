@@ -13,6 +13,12 @@ time, the screen, textures, read-back) and draws the way NoGraphicsAPI does: a d
 the GPU address of a root struct the program fills and shares with its shader, and
 shaders fetch their own vertices through pointers.
 
+The submodule is a fork, `kaitk/NoGraphicsAPI`: upstream at the pinned commit, plus what
+ngfx needs that NoGraphicsAPI lacks, each change a branch of its own, kept small and
+general so it can be offered upstream (2026-11-11). Its first is ASTC 6 × 6 (`astc-6x6`),
+the block size Draughts' photographs use. A change ngfx can make in its own layer stays
+there; the fork is for what only NoGraphicsAPI can do.
+
     Goose program --extern fn--> ngfx_* (native/, C and C++) --> NoGraphicsAPI (static)
 
 Shaders are Slang modules, compiled while the program runs by `ngfx::slang`. Four of
