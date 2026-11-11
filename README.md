@@ -49,9 +49,8 @@ Goose's `ui` through ngfx ([docs/api.md](docs/api.md#ngfx_ui)).
 ## Status
 
 Version 0.3.0: the API may still change. Built and tested on Windows 11 with Vulkan
-(RTX 4090) at the Goose pin below: the API check, every test, and every sample pass, run
-in the compiler and built. macOS 26 with Metal 4 (M1 Pro) passed at v0.2.0's pin and is
-not yet run at this one. On Linux, ngfx builds and runs headless only, since NoGraphicsAPI can't present
+(RTX 4090) and on macOS 26 with Metal 4 (M1 Pro) at the Goose pin below: the API check,
+every test, and every sample pass, run in the compiler and built. On Linux, ngfx builds and runs headless only, since NoGraphicsAPI can't present
 there, and needs a GPU whose Vulkan driver has `VK_EXT_descriptor_heap` (Mesa RADV
 26.2 or later, or NVIDIA's). The Linux build is tested in WSL, which has no such
 driver, so there the GPU tests skip.
