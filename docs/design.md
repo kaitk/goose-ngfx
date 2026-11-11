@@ -20,6 +20,9 @@ upstream commit ngfx pins with every such change merged, and the submodule follo
 `main` mirrors upstream. The first change is ASTC 6 × 6 (`astc-6x6`), the block size
 Draughts' photographs use. A change ngfx can make in its own layer stays there; the fork
 is for what only NoGraphicsAPI can do.
+Its pull request upstream, `astc-6x6` to `sebbbi/NoGraphicsAPI`, is the maintainer's to
+open and isn't open yet (2026-11-11). gfx's `WINDOW_ONLY` is the same: a branch of
+`kaitk/goose_gfx` (`window-only`), its pull request to `aardappel/goose_gfx` not yet open.
 
     Goose program --extern fn--> ngfx_* (native/, C and C++) --> NoGraphicsAPI (static)
 
