@@ -21,8 +21,7 @@ fn main() {
     let screen = ngfx::screen();
     ngfx::begin_screen(float4 { 1.0, 0.0, 0.0, 1.0 });
     ngfx::end_pass();
-    print("drawn, shown headless ", ngfx::present(), ", forced ", ngfx::present(true), ", count ",
-          ngfx::frame_count());
+    print("drawn, shown headless ", ngfx::present(), ", count ", ngfx::frame_count());
     ngfx::resize(32, 24);
     print("same size, same screen ", ngfx::screen().id == screen.id);
     ngfx::resize(int2 { 48, 16 });

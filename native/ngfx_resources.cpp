@@ -132,8 +132,12 @@ bool texture_format(int32 goose, Format* out)
 
 TextureSlot* texture_slot(ngfx_texture t)
 {
-    if (t.id == g.screen.id) g.screen_used[0] = true;
-    else if (t.id == g.screen_depth.id) g.screen_used[1] = true;
+    if (g.windowed && t.id == g.screen.id && t.id)
+    {
+        ngfx_misuse("the screen of a window is the window's image, which only a pass can draw into: draw what is to be "
+                    "read, sampled or updated into a texture of the program's, or open headless");
+        return nullptr;
+    }
     return g.textures.get(t.id);
 }
 
@@ -534,6 +538,8 @@ uint8_t ngfx_save_png(ngfx_texture t, ngfx_bytes path)
 {
     if (!ngfx_need_device("save_png")) return 0;
     if (g.in_pass) return ngfx_misuse("save_png inside a pass: end the pass first");
+    if (g.windowed && t.id == g.screen.id && t.id)
+        return ngfx_fail("save_png: a window's screen is the window's image, which can't be read; save it headless");
     TextureSlot* s = texture_slot(t);
     if (!s || !readable(s, "save_png")) return 0;
     const Format f = s->desc.format;

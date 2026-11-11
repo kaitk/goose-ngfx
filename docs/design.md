@@ -154,18 +154,25 @@ compares with the `extern` declarations in `ngfx.goose`.
   than triangles, wireframe, MSAA, and the `NO_VSYNC` and `DEBUG` flags.
 - **Every texture gets a descriptor slot** in heaps the module owns. NoGraphicsAPI leaves
   heaps to the application, but gfx programs never managed them.
-- **The screen is an offscreen RGBA8 texture**, copied to the swapchain by a fullscreen
-  draw at `present()`. NoGraphicsAPI gives the swapchain image only as a render target, and
-  this is what makes `screenshot`, `read_pixels`, and headless mode possible. The copy
-  does no sRGB conversion, as gfx's swapchain does.
-- **The screen and its depth have a texture per frame in flight behind each handle**, so
-  consecutive frames can overlap on the GPU, as gfx's do on Metal through SDL's
-  `cycle`. A pass that clears the screen or its depth as the frame's first use of it
-  switches the handle to the texture used longest ago. Any other first use (a pass that
-  loads, `index`, read-back) keeps the texture, so what a frame doesn't clear holds what
-  the last frame drew, as in gfx, and `screenshot` after `present()` sees the last frame.
-  `index(screen())` holds only for the frame it is taken in. It costs one more screen
-  and depth: 8 MB at 1280 x 800.
+- **In a window, the screen is the window's image** (2026-11-12), replacing an offscreen
+  RGBA8 texture and its spare per frame in flight, copied into the image by a fullscreen
+  draw at `present()`: 48 MB at 2560 × 1600 and a pass a frame, which made Draughts'
+  2D game hold 52 MB more than on gfx. The handle's slot describes the image (BGRA8, the
+  window's size), and a frame's first pass into it submits the frame's work so far and
+  acquires the image in a new command buffer, so only the submission that presents waits
+  for it. The image holds nothing of the last frame and can only be drawn into, so a
+  window's screen can't be sampled, read back, updated, or saved, and a window that wants
+  showing again (`needs_present()`) needs the program to draw a frame. On Apple's systems
+  `open` and `resize` set the layer's drawable size to the screen's, so the image always
+  fits it; when there is no image of the screen's size to acquire (a window minimized,
+  a resize the swapchain hasn't followed), the frame draws into a stand-in texture,
+  shown nowhere, given back once a frame gets an image. Headless, the screen is one RGBA8
+  texture, which keeps what the last frame drew, as gfx's does. Rejected: reading the
+  image back (NoGraphicsAPI gives it only as a render target; Metal would need the
+  layer's `framebufferOnly` off, and Vulkan transfer usage on the swapchain), and
+  keeping an offscreen copy only for programs that take windowed screenshots (a second
+  way to draw the screen for one feature no program here needs in a window). The copy
+  did no sRGB conversion, and neither does the image: it is UNORM, as gfx's swapchain.
 - **`draw_indexed` takes its indices as a `Range`**, an address and a size, as
   NoGraphicsAPI's takes any `GpuRange`, so indices can live in frame memory
   (`frame_range`). The overloads that take a `Buffer` look its range up first, one more
@@ -197,7 +204,7 @@ compares with the `extern` declarations in `ngfx.goose`.
   native window and needs no SDL. With its own, ngfx put two SDLs in any process that
   also used gfx, `audio`, or `ui` (the objc runtime warned of every class twice on the
   Mac), duplicated gfx's platform code, and kept a program from choosing between gfx and
-  ngfx at run time. `open` takes the window's native handle; `present(force)` ends the
+  ngfx at run time. `open` takes the window's native handle; `present()` ends the
   frame and says whether it showed one, which the program hands to its platform's wait.
   gfx's `WINDOW_ONLY` is that platform for Goose programs: it opens the window without
   a device and keeps input, events, time, and the idle wait, so draw on demand is gfx's
@@ -226,9 +233,8 @@ compares with the `extern` declarations in `ngfx.goose`.
   three frames went from 160 MB (138 MB of it graphics: 64 MB chunks committed whole,
   2 × 16 MB of frame memory, a 32 MB upload queue) to 40 MB. Draughts at rest in a
   1280 × 800 window: its 2D game from 309 MB to 167 MB, its 3D game from 614 MB to
-  419 MB, against 115 MB and 355 MB on its gfx build. Most of the rest is the screen,
-  an offscreen texture and its spare (16 MB each at 2560 × 1600) copied into the
-  drawable, which gfx draws into directly.
+  419 MB, against 115 MB and 355 MB on its gfx build; the screen drawn into the
+  window's image (above) took them to 147 MB and 389 MB.
 - **All GPU work runs on queue zero.** No program in the acceptance set needs async
   compute, and on M1 NoGraphicsAPI leaves open whether its queues are independent
   engines, so no gain could be measured. Adding it later extends the surface without
@@ -251,27 +257,18 @@ compares with the `extern` declarations in `ngfx.goose`.
 
 - **The module records barriers only where it sees both sides; the program states the
   rest** with `ngfx::barrier(before, after)`. The module orders uploads, texture
-  creation, read-back, the screen copy, each frame's first pass into anything but a
-  freshly switched screen, and a pass drawing into a target an earlier pass drew into. It cannot see what shaders reach through roots,
-  pointers, and descriptor indices, so it records nothing for that. Independent
+  creation, read-back, each frame's first pass into anything but the window's image,
+  and a pass drawing into a target an earlier pass drew into. It cannot see what
+  shaders reach through roots, pointers, and descriptor indices, so it records nothing for that. Independent
   dispatches and passes wait for nothing, which is what NoGraphicsAPI exists for. Hidden
   conservative barriers at every pass and dispatch were tried first: they serialized
   independent work and still missed hazards.
-- **A switched screen needs no barrier, on either backend.** The texture's last frame
-  finished before the CPU recorded this one: `ngfx_gpu_next_frame` waits on the
-  timeline for it. On Vulkan, NoGraphicsAPI signals the timeline at
-  `VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT` (`submit_commands` in `NoGraphicsAPI.cpp`), and
-  the spec gives a semaphore signal a first access scope of "all memory access
-  performed by the device" ("Semaphore Signaling"), so that frame's writes are made
-  available. A later `vkQueueSubmit2` orders all its commands after everything that
-  happened before it on the host, with a second access scope of all device access
-  ("Host Write Ordering Guarantees"), and the host wait happened before it. That covers
-  the clear's write after the old writes and the copy's read. The texture stays in
-  `VK_IMAGE_LAYOUT_GENERAL`, so there is no layout transition to order. NoGraphicsAPI's
-  own frame memory is reused the same way, after a timeline wait with no barrier
-  (`examples/cube`). On Metal, the shared event's completion covers it, as
-  NoGraphicsAPI's `barrier` notes for host visibility. `GOOSE_NGFX_SYNC=full` records the
-  frame boundary's barrier anyway.
+- **The window's image needs no frame boundary barrier.** Its last use, another
+  frame's presentation, is ordered before the frame's by acquiring it: Metal's
+  `waitForDrawable` before the submission that draws into it, and on Vulkan the
+  acquire semaphore NoGraphicsAPI waits on. The headless screen and every other target
+  get the barrier, as their last frame's writes may still be in flight.
+  `GOOSE_NGFX_SYNC=full` records it anyway.
 - **On Metal, each pass starts with a barrier between render stages**, which no data
   hazard calls for. Without one, the M1 Pro's GPU can hang with both its vertex and
   tiling slots busy while another process draws with Metal, and macOS restarts the
@@ -280,19 +277,20 @@ compares with the `extern` declarations in `ngfx.goose`.
   Fragment to Vertex, Fragment to Fragment, and the frame boundary all do, while an
   empty encoder and a barrier with Blit on either side don't. That points at the driver,
   not at an order ngfx misses. The frame boundary would serve, but a frame that draws
-  only into renewed screens records none. The barrier is from `Stage::vertex` to
+  only into the window's image records none. The barrier is from `Stage::vertex` to
   `Stage::vertex | Stage::index_input` with no accesses. It costs about 20 µs a frame
   in `cube` headless, and no measurable time in `mini_minecraft` or `mini_doom`;
   Fragment to Fragment costs the same. The hang was seen on macOS 26.3.1 (25D771280a)
   only, and a native Metal program reproduces it there without ngfx or NoGraphicsAPI.
   It is untested on 26.4 and later, which may not need the barrier.
-- **A frame is two submissions when it presents.** The passes go first, then a command
-  buffer that acquires the window's image, copies the screen into it, and presents. Only
-  that second submission waits for the image (at all commands on Vulkan, after
-  `waitForDrawable` on Metal), so the frame's passes don't. The copy's barrier orders
-  it after the passes, which come earlier in submission order: Vulkan's barriers reach
-  across submissions on a queue, and Metal's queue barriers across command buffers, as
-  `UploadQueue`'s already rely on.
+- **A frame is two submissions when it presents.** The passes before its first pass
+  into the window's image go first, then a command buffer that acquires the image, holds
+  the rest of the frame, and presents. Only that second submission waits for the image
+  (at all commands on Vulkan, after `waitForDrawable` on Metal), so the passes that
+  draw into textures don't. A pass there that samples what an earlier pass drew is
+  ordered by the program's barrier, as within one command buffer: Vulkan's barriers
+  reach across submissions on a queue, and Metal's queue barriers across command
+  buffers, as `UploadQueue`'s already rely on.
 - **Barrier points are packed `i32` constants**: a NoGraphicsAPI stage mask in bits 0 to 11
   and an access mask in bits 16 to 27, with NoGraphicsAPI's own bit values, combined with
   `|`. Six common points are named (`COMPUTE_WRITE`, `VERTEX_READ`, and so on). A barrier

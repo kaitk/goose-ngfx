@@ -145,19 +145,22 @@ fn main() {
             view_proj: ngfx::mul(ngfx::perspective(0.8, aspect, 0.1, 20.0), view) });
         ngfx::draw_indexed(root, index_buffer, 2, indices.len);
         ngfx::end_pass();
-        gfx::presented(ngfx::present(gfx::needs_present()));
+        gfx::presented(ngfx::present());
         drawn++;
         if drawn == frames { break; }
     }
 
-    // The last frame drawn: saved, and read back to see the cube in it.
+    // The last frame drawn: saved, and read back to see the cube in it,
+    // headless; a window's screen is its image, which can't be read.
     let saved = ngfx::screenshot("ngfx_cube.png");
-    let px = ngfx::read_pixels(ngfx::screen());
-    let size = ngfx::screen_size();
-    let mid = ((size.y as i64 / 2) * size.x + size.x as i64 / 2) * 4;
-    let background: u8[3] = [26, 31, 41];
     var cube_there = false;
-    for i in 3 { cube_there = cube_there || abs(px[mid + i] as i64 - background[i]) > 8; }
+    if gfx::native_window() == 0 {
+        let px = ngfx::read_pixels(ngfx::screen());
+        let size = ngfx::screen_size();
+        let mid = ((size.y as i64 / 2) * size.x + size.x as i64 / 2) * 4;
+        let background: u8[3] = [26, 31, 41];
+        for i in 3 { cube_there = cube_there || abs(px[mid + i] as i64 - background[i]) > 8; }
+    }
     print("drew ", drawn, " frames; cube in the middle: ", cube_there, "; saved ngfx_cube.png: ",
           saved);
     ngfx::close();

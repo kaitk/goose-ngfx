@@ -45,14 +45,13 @@ const char *ngfx_cstr(ngfx_bytes s, char *buf, size_t cap);
 bool ngfx_gpu_open(void *layer, int w, int h);
 /* Waits for the GPU and releases everything; safe after a failed open. */
 void ngfx_gpu_close(void);
-/* Ends the frame being recorded: submits it, after copying the screen into
-   the window's image when `present`. Then starts the next one. */
-void ngfx_gpu_next_frame(bool present);
+/* Ends the frame being recorded: submits it, presenting the window's image
+   if the frame drew into it, and starts the next one. Whether it presented
+   one (a flush() after drawing into it presents too). */
+bool ngfx_gpu_next_frame(void);
 /* Replaces the screen's textures with ones of w x h pixels, keeping their
    handles. */
 bool ngfx_gpu_resize(int w, int h);
-/* Whether this frame has drawn into the screen. */
-bool ngfx_gpu_screen_drawn(void);
 /* Inside a render pass. */
 bool ngfx_gpu_in_pass(void);
 /* Submits what has been recorded and waits for the GPU to finish it. */

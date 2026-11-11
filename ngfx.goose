@@ -9,8 +9,8 @@
 //   ngfx::open(gfx::native_window(), size.x, size.y, 0);
 //   while gfx::frame() {                          // events; waits when idle
 //       ngfx::resize(gfx::screen_size());
-//       ...draw...
-//       gfx::presented(ngfx::present(gfx::needs_present()));
+//       if changed || gfx::needs_present() { ...draw into screen()... }
+//       gfx::presented(ngfx::present());
 //   } The
 // functions are C, the layer in native/, declared here as extern fns against
 // the list in native/ngfx_api.h; scripts/api_check.py checks the two agree.
@@ -49,12 +49,11 @@
 // layer orders the work it records itself: uploads (NoGraphicsAPI's
 // UploadQueue, which reaches the GPU before the frame's work, so
 // update_buffer takes effect for the whole frame it is called in), texture
-// creation, read-back, the copy of the screen to the window, each frame's
-// first pass after the last frame (none when it clears the screen, which
-// then draws into a texture no earlier frame still uses), and a pass
-// drawing into a target an earlier pass drew into. What shaders read and write through roots, the
-// layer cannot see, so the program states it, between passes and
-// dispatches:
+// creation, read-back, each frame's first pass after the last frame (none
+// when it draws into the window's image alone, which no earlier frame used),
+// and a pass drawing into a target an earlier pass drew into. What shaders
+// read and write through roots, the layer cannot see, so the program states
+// it, between passes and dispatches:
 //
 //   ngfx::dispatch(...);                                       // writes a buffer
 //   ngfx::barrier(ngfx::COMPUTE_WRITE, ngfx::VERTEX_READ);     // which the pass reads
@@ -302,18 +301,18 @@ fn driver() -> u8[>..] {
 }
 
 // Ends the frame drawn since open() or the last present(): submits it, and
-// shows the screen in the window if the frame drew into it, or if `force`
-// (the window was exposed: gfx's needs_present()). Then starts the next
-// frame. Whether it showed one: a program on gfx hands that to
+// shows the screen in the window if the frame drew into it. Then starts the
+// next frame. Whether it showed one: a program on gfx hands that to
 // gfx::presented, so that a frame that showed nothing makes the next
-// gfx::frame() wait for an event. Headless, it shows nothing.
-extern fn present_raw(force: bool) -> bool = "ngfx_present";
-fn present(force: bool) -> bool {
-    let shown = present_raw(force);
+// gfx::frame() wait for an event. A window that wants showing again (gfx's
+// needs_present(): exposed, shown or resized) needs a frame drawn: ngfx
+// keeps no copy of the last one. Headless, it shows nothing.
+extern fn present_raw() -> bool = "ngfx_present";
+fn present() -> bool {
+    let shown = present_raw();
     check();
     shown
 }
-fn present() -> bool { present(false) }
 // The window's size in pixels, which the screen follows: call it each frame
 // with gfx::screen_size(), before drawing. Nothing happens when it is the
 // screen's size already.
@@ -326,13 +325,13 @@ fn flush() {
     check();
 }
 
-// The screen: what a frame draws into, an RGBA8 texture of the window's
-// size in pixels, with a depth texture to go with it. Both keep their
-// handles when the window resizes. A frame that starts by clearing one
-// draws into another texture behind the same handle than the frame before,
-// so that consecutive frames can overlap on the GPU; what a frame doesn't
-// clear holds what the last frame drew. index(screen()) holds for the frame
-// it is taken in.
+// The screen: what a frame draws into, of the window's size in pixels, with
+// a depth texture to go with it. Both keep their handles when the window
+// resizes. In a window the screen is the window's image, BGRA8, which a
+// frame's first pass into it acquires and present() shows: only a pass can
+// draw into it, and it holds nothing of the last frame, so that pass clears
+// it. Headless it is an RGBA8 texture, which keeps what the last frame drew
+// and can be sampled, read back and saved.
 extern fn screen() -> Texture = "ngfx_screen";
 extern fn screen_depth() -> Texture = "ngfx_screen_depth";
 extern fn screen_size_into(out: int2&) = "ngfx_screen_size";
@@ -473,14 +472,16 @@ fn read_pixels(t: Texture) -> u8[>..] {
     return px;
 }
 
-// An RGBA8 or BGRA8 texture's mip 0 as a PNG file; the screen as it is
-// shown, opaque.
+// An RGBA8 or BGRA8 texture's mip 0 as a PNG file; the headless screen as
+// it is shown, opaque.
 extern fn save_png_raw(t: Texture, path: const u8[:]) -> bool = "ngfx_save_png";
 fn save_png(t: Texture, path: const u8[:]) -> bool {
     let ok = save_png_raw(t, path);
     check();
     ok
 }
+// The headless screen; in a window the screen is the window's image, which
+// can't be read.
 fn screenshot(path: const u8[:]) -> bool { save_png(screen(), path) }
 
 extern fn texture_info_into(t: Texture, out: TextureDesc&) -> bool = "ngfx_texture_info";

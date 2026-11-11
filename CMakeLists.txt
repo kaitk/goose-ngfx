@@ -87,9 +87,9 @@ add_subdirectory("${NGFX_NG}" "${CMAKE_CURRENT_BINARY_DIR}/NoGraphicsAPI" EXCLUD
 set(NGFX_OUT "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 
 # --- the layer's own shaders --------------------------------------------------------
-# The screen's copy into the window, and the downsampling generate_mips
-# dispatches, each compiled as ngfx::slang compiles a module: every entry
-# point at once, NoGraphicsAPI's options, into a header of bytes.
+# The downsampling generate_mips dispatches, compiled as ngfx::slang compiles
+# a module: every entry point at once, NoGraphicsAPI's options, into a header
+# of bytes.
 set(ngfx_shader_options -fvk-use-c-layout -matrix-layout-row-major
     -I "${NGFX_NG}/include" -I "${NGFX_NG}/utility/include")
 function(ngfx_layer_shader name)
@@ -125,7 +125,6 @@ function(ngfx_layer_shader name)
         DEPENDS "${bin}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/bin2h.cmake"
         VERBATIM)
 endfunction()
-ngfx_layer_shader(ngfx_screen)
 ngfx_layer_shader(ngfx_mips)
 
 # --- the layer ------------------------------------------------------------------
@@ -139,7 +138,6 @@ add_library(ngfx STATIC
     native/ngfx_resources.cpp
     native/ngfx_draw.cpp
     native/ngfx_slang.cpp
-    "${NGFX_OUT}/ngfx_screen_code.h"
     "${NGFX_OUT}/ngfx_mips_code.h"
 )
 target_include_directories(ngfx PRIVATE native "${NGFX_OUT}" third_party/stb)

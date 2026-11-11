@@ -1566,7 +1566,7 @@ fn main() {
         if gfx::key_pressed("F12") {
             say(if ngfx::screenshot("ngfx_mini_doom.png") { "SAVED NGFX_MINI_DOOM.PNG" } else { "SCREENSHOT FAILED" });
         }
-        gfx::presented(ngfx::present(gfx::needs_present()));
+        gfx::presented(ngfx::present());
         drawn++;
         if drawn == frames { break; }
     }

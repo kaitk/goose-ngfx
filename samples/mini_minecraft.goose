@@ -1660,7 +1660,7 @@ fn main() {
             if ngfx::screenshot("ngfx_mini_minecraft.png") { say("SAVED NGFX_MINI_MINECRAFT.PNG"); }
             else { say("SCREENSHOT FAILED"); }
         }
-        gfx::presented(ngfx::present(gfx::needs_present()));
+        gfx::presented(ngfx::present());
         drawn++;
         if drawn == frames { break; }
     }

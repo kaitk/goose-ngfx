@@ -1,12 +1,11 @@
 // The ngfx layer's pipelines, passes, draws and dispatches, and the barriers
 // the layer records around them: the frame boundary, a target drawn into
-// twice, the screen copy, the program's own (ngfx_barrier), and
+// twice, the program's own (ngfx_barrier), and
 // GOOSE_NGFX_SYNC=full's (docs/design.md, "Synchronization").
 
 #include "ngfx_gpu.hpp"
 
 #include "ngfx_mips_code.h"
-#include "ngfx_screen_code.h"
 
 namespace ngfx {
 
@@ -255,20 +254,6 @@ std::vector<uint32> aligned_words(const void* data, size_t size)
     return words;
 }
 
-PSO* create_copy_pso()
-{
-    const std::vector<uint32> words = aligned_words(ngfx_screen_code, sizeof ngfx_screen_code);
-    const ByteSpan aligned(words.data(), sizeof ngfx_screen_code);
-    const ColorTargetDesc colors[] = {{.format = Format::bgra8_unorm}};
-    PSO* pso = create_graphics_pso(g.device, {
-        .vertex = {.code = aligned, .entry_point = "copyVertex"},
-        .fragment = {.code = aligned, .entry_point = "copyFragment"},
-        .color_targets = colors,
-    });
-    if (!pso) ngfx_fail("creating the screen's copy pipeline: %s", ngfx_error_text());
-    return pso;
-}
-
 void release_pipelines()
 {
     g.pipelines.each([](PipelineSlot& p) {
@@ -404,19 +389,15 @@ uint8_t ngfx_begin_pass(const ngfx_pass_desc* desc)
     if (!ngfx_need_device("begin_pass")) return 0;
     if (g.in_pass) return ngfx_misuse("begin_pass inside a pass: end_pass first");
     const ngfx_pass_desc& d = *desc;
-    // A frame that starts by clearing the screen draws into an instance no
-    // earlier frame still uses.
-    for (uint32 i = 0; i < 4 && d.color[i].id; ++i)
-        if (d.clear_color) renew_screen(d.color[i].id);
-    if (d.depth.id && d.clear_depth) renew_screen(d.depth.id);
     Targets t{};
     if (!targets_of(d, &t, "begin_pass")) return 0;
     ColorAttachment colors[4];
     uint32 width = 0, height = 0;
     for (uint32 i = 0; i < t.count; ++i)
     {
-        TextureSlot* s = texture_slot(d.color[i]);
-        RenderView* view = render_view(s, uint32(d.mip), uint32(d.layer));
+        TextureSlot* s = g.textures.get(d.color[i].id);
+        const bool window = g.windowed && d.color[i].id == g.screen.id;
+        RenderView* view = window ? screen_view() : render_view(s, uint32(d.mip), uint32(d.layer));
         if (!view) return ngfx_fail("begin_pass: creating a render view");
         colors[i] = {.render_view = view, .load = d.clear_color ? LoadOp::clear : LoadOp::load,
                      .clear = {.x = d.color_value.x, .y = d.color_value.y, .z = d.color_value.z, .w = d.color_value.w}};
@@ -450,20 +431,19 @@ uint8_t ngfx_begin_pass(const ngfx_pass_desc* desc)
     uint32 target_count = 0;
     for (uint32 i = 0; i < t.count; ++i) targets[target_count++] = d.color[i].id;
     if (d.depth.id) targets[target_count++] = d.depth.id;
-    bool reused = false, renewed = true;
+    bool reused = false, fresh = true;
     for (uint32 i = 0; i < target_count; ++i)
     {
         for (uint32 w : g.written_targets) reused = reused || w == targets[i];
-        renewed = renewed && renewed_screen(targets[i]);
+        fresh = fresh && fresh_target(targets[i]);
     }
-    if (!g.frame_barrier && (!renewed || g.full_sync))
+    if (!g.frame_barrier && (!fresh || g.full_sync))
     {
         // The frame boundary, once a frame before its first pass that draws
-        // into more than renewed screens: the last frame's target writes,
-        // and its screen copy's read, before this frame writes targets. It
-        // covers examples/cube's depth barrier. A renewed screen needs none:
-        // the timeline wait for its last frame orders that frame's writes
-        // and reads before this submission (docs/design.md).
+        // into more than the window's image: the last frame's target writes
+        // before this frame writes targets. It covers examples/cube's depth
+        // barrier. The window's image needs none: acquiring it orders its
+        // last use before this frame's (docs/design.md).
         frame_boundary_barrier(commands);
         g.frame_barrier = true;
         g.written_targets.clear();

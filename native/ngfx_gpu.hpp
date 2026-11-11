@@ -161,10 +161,10 @@ struct SamplerSlot
 
 // One region of a texture written by an upload: a mip of one slice.
 // GOOSE_NGFX_BENCH=1: one frame's GPU timestamps, zero where none was
-// written. A headless frame has no copy.
+// written.
 struct BenchStamps
 {
-    uint64 begin = 0, passes_end = 0, copy_begin = 0, copy_end = 0;
+    uint64 begin = 0, passes_end = 0;
 };
 
 struct TextureUpload
@@ -300,18 +300,17 @@ struct State
     Table<PipelineSlot> pipelines{"pipeline"};
     Table<ComputeSlot> computes{"compute pipeline"};
 
-    // The screen: what a frame draws into, copied to the window at frame().
-    // Each handle has an instance per frame in flight. The table holds the
-    // current one; a pass that clears the screen or its depth as the frame's
-    // first use of it switches to the spare used longest ago, which the
-    // timeline wait has already seen finish, so frames don't share it.
+    // The screen: what a frame draws into. Headless, a texture. Windowed, the
+    // window's image: its slot has no texture, and a frame's first pass into
+    // it acquires one (screen_view), which the frame's last submission
+    // presents. When there is none to acquire (a minimized window, an image
+    // of another size than the screen), the frame draws into `stand_in`
+    // instead, shown nowhere, and presents nothing.
     ngfx_texture screen{}, screen_depth{};
-    TextureSlot screen_spares[2][frames_in_flight - 1];   // color, depth; oldest first
-    bool screen_used[2] = {};       // this frame has used the instance in the table
-    bool screen_renewed[2] = {};    // this frame switched to the instance in the table
     int width = 0, height = 0;
-    PSO* copy_pso = nullptr;
-    uint32 copy_samplers[2] = {};   // nearest, linear
+    RenderView* drawable = nullptr;
+    bool presented = false;         // this frame presented the window's image
+    TextureSlot stand_in{};
     ngfx_compute_pipeline mip_pipeline{};   // made on first use, kept until close
 
     // Recording.
@@ -347,8 +346,9 @@ CommandBuffer* frame_commands();
 // if it is used up; empty only if growing it failed.
 GpuCpuRange<byte> frame_allocate(uint64 size);
 // Submits the frame's commands so far, after the setup and upload work before
-// them; `present` with submit_and_present. Starts no new command buffer.
-void submit_frame_commands(bool present);
+// them, presenting the window's image if they acquired one. Starts no new
+// command buffer.
+void submit_frame_commands();
 // Submits what has been recorded, waits for all of it, and begins recording
 // again in the same frame.
 void finish();
@@ -368,18 +368,16 @@ void upload_texture(TextureSlot* s, const TextureCopyDesc& region, const void* d
 void flush_uploads();
 
 bool texture_format(int32 goose, Format* out);
-// A texture's slot; for the screen or its depth, marks the instance used by
-// this frame.
+// A texture's slot, or a misuse and null.
 TextureSlot* texture_slot(ngfx_texture t);
 RenderView* render_view(TextureSlot* s, uint32 mip, uint32 slice);
 // Creates a texture: placed, initialized, with its descriptors written.
 bool create_texture(const ngfx_texture_desc& desc, uint32* id, TextureSlot** out);
-// Switches `id`, the screen or its depth, to its spare instance, if this
-// frame has not used it yet.
-void renew_screen(uint32 id);
-// Whether `id` is the screen or its depth, switched to its spare by this
-// frame: no earlier frame still uses the instance it names.
-bool renewed_screen(uint32 id);
+// Windowed, what a pass into the screen draws into: the window's image,
+// acquired by the frame's first pass into it, or the stand-in.
+RenderView* screen_view();
+// Whether `id` is the window's image this frame: no earlier frame used it.
+inline bool fresh_target(uint32 id) { return g.drawable && id == g.screen.id; }
 void free_texture(TextureSlot& s);
 // Frees a copy of `s` once the GPU has finished every use recorded so far.
 void release_texture_later(const TextureSlot& s);
@@ -395,7 +393,6 @@ inline CompareOp compare_op(int32 c) { return c >= 1 && c <= 8 ? CompareOp(c - 1
 // The code section and entries of an ngfx::slang blob, checked.
 bool read_blob(ngfx_bytes blob, const char* what, std::vector<uint32>* code,
                std::vector<ngfx_blob_entry>* entries);
-PSO* create_copy_pso();
 void release_pipelines();
 
 // GOOSE_NGFX_SYNC=full's barrier: every earlier write before every later

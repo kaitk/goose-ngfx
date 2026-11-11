@@ -28,6 +28,7 @@
 typedef struct {
     bool open;
     bool windowed;
+    void *layer;
     int64_t frames;                     /* frames presented since open */
     char error[1024];
     int64_t misuse;
@@ -91,6 +92,21 @@ const char *ngfx_cstr(ngfx_bytes s, char *buf, size_t cap) {
 
 /* --- open and close -------------------------------------------------------- */
 
+/* The window's image at the screen's size, which a pass into the screen
+   needs; on Apple's systems the layer is told, as SDL's view may not have
+   followed a resize yet. Elsewhere the swapchain follows the window. */
+static void ngfx_size_layer(int64_t width, int64_t height) {
+#if defined(__APPLE__)
+    if (!ngfx.layer) return;
+    typedef struct { double width, height; } size;
+    ((void (*)(void *, SEL, size))objc_msgSend)(ngfx.layer, sel_registerName("setDrawableSize:"),
+                                                (size){(double)width, (double)height});
+#else
+    (void)width;
+    (void)height;
+#endif
+}
+
 uint8_t ngfx_available(void) { return 1; }
 
 uint8_t ngfx_open(uint64_t window, int64_t width, int64_t height, int64_t flags) {
@@ -114,6 +130,8 @@ uint8_t ngfx_open(uint64_t window, int64_t width, int64_t height, int64_t flags)
     ngfx.error[0] = 0;
     ngfx.open = true;
     ngfx.windowed = layer != NULL;
+    ngfx.layer = layer;
+    ngfx_size_layer(width, height);
     if (!ngfx_gpu_open(layer, (int)width, (int)height)) {
         char why[sizeof ngfx.error];
         memcpy(why, ngfx.error, sizeof why);
@@ -146,14 +164,13 @@ void ngfx_driver(gs_rref out) {
 
 /* --- frames ------------------------------------------------------------------ */
 
-/* Ends the frame: submits it, and shows it in the window when it drew into
-   the screen or `force` (the window was exposed); then starts the next one.
-   Whether it showed one, for the program's platform to wait on when not. */
-uint8_t ngfx_present(uint8_t force) {
+/* Ends the frame: submits it, showing it in the window when it drew into
+   the screen; then starts the next one. Whether it showed one, for the
+   program's platform to wait on when not. */
+uint8_t ngfx_present(void) {
     if (!ngfx_need_device("present")) return 0;
     if (ngfx_gpu_in_pass()) return ngfx_misuse("present() inside a pass: end the pass first");
-    bool shown = ngfx.windowed && (ngfx_gpu_screen_drawn() || force);
-    ngfx_gpu_next_frame(shown);
+    bool shown = ngfx_gpu_next_frame();
     if (shown) ngfx.frames++;
     return shown;
 }
@@ -167,7 +184,9 @@ void ngfx_resize(int64_t width, int64_t height) {
     }
     int w, h;
     ngfx_gpu_screen_size(&w, &h);
-    if (w != width || h != height) ngfx_gpu_resize((int)width, (int)height);
+    if (w == width && h == height) return;
+    ngfx_size_layer(width, height);
+    ngfx_gpu_resize((int)width, (int)height);
 }
 
 void ngfx_flush(void) {

@@ -100,7 +100,7 @@ typedef struct {
     X(void, ngfx_error, (gs_rref out)) \
     X(int64_t, ngfx_misuse_count, (void)) \
     X(void, ngfx_driver, (gs_rref out)) \
-    X(uint8_t, ngfx_present, (uint8_t force)) \
+    X(uint8_t, ngfx_present, (void)) \
     X(void, ngfx_resize, (int64_t width, int64_t height)) \
     X(void, ngfx_flush, (void)) \
     X(void, ngfx_screen_size, (ngfx_int2 *out)) \

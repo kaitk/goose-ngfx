@@ -1,6 +1,6 @@
 // The ngfx layer's device and frames: opening NoGraphicsAPI, recording and
 // submitting each frame, the upload queue and deferred releases, and the
-// screen, which is copied into the window's image when a frame ends.
+// screen, which windowed is the window's image.
 
 #include "ngfx_gpu.hpp"
 
@@ -57,17 +57,16 @@ void begin_frame_stamps()
     if (g.bench) write_timestamp(g.commands, &g.bench_stamps[g.slot].begin);
 }
 
-// Per frame, on stderr: the GPU time of the frame's passes, of the screen
-// copy, and from the start of the passes to the end of the copy, in
-// microseconds; then the time ngfx::slang took.
+// Per frame, on stderr: the GPU time of the frame's passes in microseconds,
+// then 0 and the same time again (once the screen's copy and the whole
+// frame, kept for bench/run_bench.py); then the time ngfx::slang took.
 void print_stamps()
 {
     const double us = get_device_caps(g.device).timestamp_period_ns / 1000.0;
     for (const BenchStamps& s : g.bench_frames)
     {
-        const uint64 end = s.copy_end ? s.copy_end : s.passes_end;
-        fprintf(stderr, "ngfx_bench gpu %.2f %.2f %.2f\n", double(s.passes_end - s.begin) * us,
-                s.copy_end ? double(s.copy_end - s.copy_begin) * us : 0.0, double(end - s.begin) * us);
+        const double passes = double(s.passes_end - s.begin) * us;
+        fprintf(stderr, "ngfx_bench gpu %.2f 0.00 %.2f\n", passes, passes);
     }
     double seconds = 0;
     int modules = 0;
@@ -75,85 +74,84 @@ void print_stamps()
     fprintf(stderr, "ngfx_bench slang %.1f %d\n", seconds * 1000.0, modules);
 }
 
-// Clears the screen to black, and its depth, if it has one, to far, as gfx's
-// starts.
+// Clears the headless screen to black, and its depth, if it has one, to
+// far, as gfx's starts.
 void clear_screen()
 {
-    TextureSlot* color = texture_slot(g.screen);
+    TextureSlot* color = g.windowed ? nullptr : texture_slot(g.screen);
     TextureSlot* depth = g.screen_depth.id ? texture_slot(g.screen_depth) : nullptr;
-    if (!color) return;
+    if (!color && !depth) return;
     CommandBuffer* commands = frame_commands();
     frame_boundary_barrier(commands);
-    const ColorAttachment colors[] = {{.render_view = render_view(color, 0, 0), .load = LoadOp::clear,
+    const ColorAttachment colors[] = {{.render_view = color ? render_view(color, 0, 0) : nullptr, .load = LoadOp::clear,
                                        .clear = {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 1.0f}}};
-    RenderingDesc pass{.colors = colors};
+    RenderingDesc pass{.colors = {colors, color ? 1u : 0u}};
     if (depth) pass.depth = {.render_view = render_view(depth, 0, 0), .load = LoadOp::clear, .clear = 1.0f};
     begin_render_pass(commands, pass);
     end_render_pass(commands);
 }
 
-// The screen's color (0) or depth (1) textures at w x h, one per frame in
-// flight. The handle stays; the table and the spares get new textures, the
-// old ones released once the frames using them finish.
-bool create_screen_part(int i, int w, int h)
+// Puts a new texture of `desc` behind `handle`, the old one released once
+// the frames using it finish.
+bool replace_texture(ngfx_texture& handle, const ngfx_texture_desc& desc)
 {
-    const ngfx_texture_desc color{.kind = NGFX_TEXTURE_2D, .format = NGFX_RGBA8,
-                                     .usage = NGFX_SAMPLED | NGFX_COLOR_TARGET, .width = w, .height = h,
-                                     .depth = 1, .mips = 1};
-    const ngfx_texture_desc depth{.kind = NGFX_TEXTURE_2D, .format = NGFX_DEPTH,
-                                     .usage = NGFX_DEPTH_TARGET, .width = w, .height = h, .depth = 1, .mips = 1};
-    const ngfx_texture_desc& desc = i ? depth : color;
-    ngfx_texture& handle = i ? g.screen_depth : g.screen;
-    for (uint32 k = 0; k < frames_in_flight; ++k)
+    uint32 id = 0;
+    TextureSlot* fresh = nullptr;
+    if (!create_texture(desc, &id, &fresh)) return false;
+    TextureSlot* old = g.textures.find(handle.id);
+    if (!old)
     {
-        uint32 id = 0;
-        TextureSlot* fresh = nullptr;
-        if (!create_texture(desc, &id, &fresh)) return false;
-        TextureSlot* old = k ? &g.screen_spares[i][k - 1] : g.textures.find(handle.id);
-        if (!k && !old)
-        {
-            handle.id = id;
-            continue;
-        }
-        if (old->placed.texture) release_texture_later(*old);
-        *old = *fresh;
-        g.textures.remove(id);
+        handle.id = id;
+        return true;
     }
+    if (old->placed.texture) release_texture_later(*old);
+    *old = *fresh;
+    g.textures.remove(id);
     return true;
 }
 
+void release_stand_in()
+{
+    if (g.stand_in.placed.texture) release_texture_later(g.stand_in);
+    g.stand_in = {};
+}
+
+// The screen's depth at w x h.
+bool create_screen_depth(int w, int h)
+{
+    return replace_texture(g.screen_depth, {.kind = NGFX_TEXTURE_2D, .format = NGFX_DEPTH, .usage = NGFX_DEPTH_TARGET,
+                                            .width = w, .height = h, .depth = 1, .mips = 1});
+}
+
 // The screen at w x h, with its depth only once a program has asked for it
-// (screen_depth()): most draw the screen without one.
+// (screen_depth()): most draw the screen without one. Windowed, the screen's
+// slot only describes the window's image, which the window's size sets.
 bool create_screen(int w, int h)
 {
     if (w < 1) w = 1;
     if (h < 1) h = 1;
-    if (!create_screen_part(0, w, h) || (g.screen_depth.id && !create_screen_part(1, w, h))) return false;
+    if (g.windowed)
+    {
+        TextureSlot* s = g.textures.find(g.screen.id);
+        if (!s) s = g.textures.add(g.screen.id);
+        if (!s) return false;
+        s->desc = {.extent = {.x = uint32(w), .y = uint32(h), .z = 1}, .format = Format::bgra8_unorm,
+                   .usage = TextureUsage::color_attachment};
+        s->goose = {.kind = NGFX_TEXTURE_2D, .format = NGFX_BGRA8, .usage = NGFX_COLOR_TARGET, .width = w, .height = h,
+                    .depth = 1, .mips = 1};
+        release_stand_in();
+    }
+    else if (!replace_texture(g.screen, {.kind = NGFX_TEXTURE_2D, .format = NGFX_RGBA8,
+                                         .usage = NGFX_SAMPLED | NGFX_COLOR_TARGET, .width = w, .height = h,
+                                         .depth = 1, .mips = 1}))
+    {
+        return false;
+    }
+    if (g.screen_depth.id && !create_screen_depth(w, h)) return false;
     g.width = w;
     g.height = h;
     clear_screen();
     return true;
-}
-
-// Draws the screen into the window's image: a fullscreen triangle sampling
-// it, nearest when the sizes match, as gfx's blit filters.
-void copy_screen(const SwapchainFrame& frame)
-{
-    TextureSlot* screen = texture_slot(g.screen);
-    // examples/deferred_renderer's barrier before its lighting pass samples
-    // what the frame drew.
-    barrier(g.commands, Stage::color_output | Stage::depth_stencil_tests, Access::color_write | Access::depth_stencil_write,
-            Stage::fragment, Access::shader_read);
-    const ColorAttachment colors[] = {{.render_view = frame.render_view, .load = LoadOp::discard}};
-    begin_render_pass(g.commands, {.colors = colors});
-    bind_pso(g.commands, g.copy_pso);
-    g.bound_pso = g.copy_pso;
-    const bool same = frame.extent.x == uint32(g.width) && frame.extent.y == uint32(g.height);
-    const uint32 root_values[4] = {screen->sampled, g.copy_samplers[same ? 0 : 1], 0, 0};
-    const GpuCpuRange<byte> root = frame_allocate(sizeof root_values);
-    memcpy(root.cpu, root_values, sizeof root_values);
-    draw(g.commands, root.gpu, 3);
-    end_render_pass(g.commands);
 }
 
 } // namespace
@@ -191,26 +189,34 @@ GpuCpuRange<byte> frame_allocate(uint64 size)
     return g.frame_data[i]->allocate(size);
 }
 
-void renew_screen(uint32 id)
+RenderView* screen_view()
 {
-    const int i = id == g.screen.id ? 0 : id == g.screen_depth.id ? 1 : -1;
-    if (i < 0 || g.screen_used[i]) return;
-    g.screen_used[i] = true;
-    TextureSlot* current = g.textures.find(id);
-    if (!current) return;
-    // The oldest spare goes into the table, and the current instance to the
-    // back of the spares.
-    TextureSlot* spares = g.screen_spares[i];
-    TextureSlot oldest = std::move(spares[0]);
-    for (uint32 k = 1; k < frames_in_flight - 1; ++k) spares[k - 1] = std::move(spares[k]);
-    spares[frames_in_flight - 2] = std::move(*current);
-    *current = std::move(oldest);
-    g.screen_renewed[i] = true;
-}
-
-bool renewed_screen(uint32 id)
-{
-    return (id == g.screen.id && g.screen_renewed[0]) || (id == g.screen_depth.id && g.screen_renewed[1]);
+    if (g.drawable) return g.drawable;
+    if (!g.stand_in.placed.texture)
+    {
+        const uint32x2 extent = get_drawable_extent(g.device);
+        if (extent.x == uint32(g.width) && extent.y == uint32(g.height))
+        {
+            // The frame's work so far goes first, so that only the submission
+            // that presents waits for the image.
+            submit_frame_commands();
+            begin_frame_commands();
+            const SwapchainFrame frame = acquire(g.commands);
+            if (frame.render_view)
+            {
+                g.drawable = frame.render_view;
+                return g.drawable;
+            }
+        }
+        uint32 id = 0;
+        TextureSlot* made = nullptr;
+        if (!create_texture({.kind = NGFX_TEXTURE_2D, .format = NGFX_BGRA8, .usage = NGFX_COLOR_TARGET,
+                             .width = g.width, .height = g.height, .depth = 1, .mips = 1}, &id, &made))
+            return nullptr;
+        g.stand_in = *made;
+        g.textures.remove(id);
+    }
+    return render_view(&g.stand_in, 0, 0);
 }
 
 CommandBuffer* begin_setup() { return begin_commands(g.pools[g.slot]); }
@@ -284,15 +290,24 @@ void upload_texture(TextureSlot* s, const TextureCopyDesc& region, const void* d
     g.uploaded_textures.push_back({.texture = s->placed.texture, .region = region});
 }
 
-void submit_frame_commands(bool present)
+void submit_frame_commands()
 {
     // The uploads made so far go first, on the same queue: UploadQueue's own
     // barriers order them against the work before and after them.
     flush_uploads();
     end_commands(g.commands);
     ++g.timeline.value;
-    if (present) submit_and_present(g.device, {.commands = {g.commands}, .completion = g.timeline});
-    else submit(g.device, {.commands = {g.commands}, .completion = g.timeline});
+    if (g.drawable)
+    {
+        submit_and_present(g.device, {.commands = {g.commands}, .completion = g.timeline});
+        g.drawable = nullptr;
+        g.presented = true;
+        release_stand_in();
+    }
+    else
+    {
+        submit(g.device, {.commands = {g.commands}, .completion = g.timeline});
+    }
     g.pool_values[g.slot] = g.timeline.value;
     g.commands = nullptr;
     run_pending(g.timeline.value);
@@ -300,7 +315,7 @@ void submit_frame_commands(bool present)
 
 void finish()
 {
-    submit_frame_commands(false);
+    submit_frame_commands();
     wait_timeline(g.timeline);
     g.deletes->tick();
     begin_frame_commands();
@@ -321,7 +336,6 @@ extern "C" {
 bool ngfx_gpu_on_main_thread(void) { return std::this_thread::get_id() == main_thread; }
 
 bool ngfx_gpu_in_pass(void) { return g.in_pass; }
-bool ngfx_gpu_screen_drawn(void) { return g.screen_used[0]; }
 
 const char* ngfx_gpu_driver(void)
 {
@@ -346,8 +360,8 @@ bool ngfx_gpu_open(void* layer, int w, int h)
     g.full_sync = sync && !strcmp(sync, "full");
     const char* bench = getenv("GOOSE_NGFX_BENCH");
     g.bench = bench && !strcmp(bench, "1");
-    // The screen is copied as it is, so the window's image has its format,
-    // without sRGB conversion, as gfx's swapchain is.
+    // The window's image takes what a frame draws as it is, without sRGB
+    // conversion, as gfx's swapchain does.
     const DeviceInit init = create_device({.window = layer, .swapchain_format = layer ? Format::bgra8_unorm : Format::undefined,
                                            .desired_swapchain_image_count = 3});
     if (!init.device)
@@ -379,16 +393,6 @@ bool ngfx_gpu_open(void* layer, int w, int h)
     g.deletes = new DeleteQueue(g.timeline.semaphore, delete_capacity);
     g.texture_slots.capacity = texture_descriptors;
     g.sampler_slots.capacity = sampler_descriptors;
-    for (int i = 0; i < 2; ++i)
-    {
-        g.copy_samplers[i] = g.sampler_slots.allocate();
-        const Filter f = i ? Filter::linear : Filter::nearest;
-        write_sampler_descriptor(g.sampler_descriptors, g.copy_samplers[i],
-                                 {.min_filter = f, .mag_filter = f, .mip_filter = Filter::nearest,
-                                  .address_u = AddressMode::clamp_to_edge, .address_v = AddressMode::clamp_to_edge,
-                                  .address_w = AddressMode::clamp_to_edge});
-    }
-    if (g.windowed && !(g.copy_pso = create_copy_pso())) return false;
     begin_frame_commands();
     begin_frame_stamps();
     return create_screen(w, h);
@@ -405,7 +409,7 @@ void ngfx_gpu_close(void)
     {
         if (g.in_pass) end_render_pass(g.commands);
         g.in_pass = false;
-        submit_frame_commands(false);
+        submit_frame_commands();
     }
     wait_idle(g.device);
     if (g.bench)
@@ -419,11 +423,10 @@ void ngfx_gpu_close(void)
     if (g.deletes) g.deletes->drain();
     delete g.deletes;
     release_pipelines();
-    if (g.copy_pso) destroy_pso(g.copy_pso);
-    g.textures.each([](TextureSlot& s) { free_texture(s); });
-    for (auto& spares : g.screen_spares)
-        for (TextureSlot& s : spares)
-            if (s.placed.texture) free_texture(s);
+    g.textures.each([](TextureSlot& s) {
+        if (s.placed.texture) free_texture(s);
+    });
+    if (g.stand_in.placed.texture) free_texture(g.stand_in);
     g.buffers.each([](BufferSlot& s) {
         if (s.chunk < 0) destroy_gpu_heap(s.own);
     });
@@ -453,28 +456,13 @@ void ngfx_gpu_close(void)
     g = State{};
 }
 
-void ngfx_gpu_next_frame(bool present)
+bool ngfx_gpu_next_frame(void)
 {
-    // The frame's passes are submitted first, so that only the copy into
-    // the window's image waits for it: acquired in a command buffer of its
-    // own, written by the copy, and presented by that buffer's submission.
-    // The copy's barrier orders it after the passes, which are earlier in
-    // submission order.
     BenchStamps& stamps = g.bench_stamps[g.slot];
     if (g.bench) write_timestamp(g.commands, &stamps.passes_end);
-    submit_frame_commands(false);
-    if (present && g.windowed)
-    {
-        begin_frame_commands();
-        const SwapchainFrame frame = acquire(g.commands);
-        if (frame.render_view)
-        {
-            if (g.bench) write_timestamp(g.commands, &stamps.copy_begin);
-            copy_screen(frame);
-            if (g.bench) write_timestamp(g.commands, &stamps.copy_end);
-        }
-        submit_frame_commands(frame.render_view != nullptr);
-    }
+    submit_frame_commands();
+    const bool shown = g.presented;
+    g.presented = false;
     // The next frame in flight's pool and memory, once the frame that last
     // used them has finished, as examples/cube waits.
     g.slot = (g.slot + 1) % frames_in_flight;
@@ -488,8 +476,7 @@ void ngfx_gpu_next_frame(bool present)
     begin_frame_stamps();
     g.frame_barrier = false;
     g.written_targets.clear();
-    g.screen_used[0] = g.screen_used[1] = false;
-    g.screen_renewed[0] = g.screen_renewed[1] = false;
+    return shown;
 }
 
 bool ngfx_gpu_resize(int w, int h) { return create_screen(w, h); }
@@ -503,7 +490,7 @@ ngfx_texture ngfx_screen(void)
 ngfx_texture ngfx_screen_depth(void)
 {
     if (!ngfx_need_device("screen_depth")) return g.screen_depth;
-    if (!g.screen_depth.id && create_screen_part(1, g.width, g.height)) clear_screen();
+    if (!g.screen_depth.id && create_screen_depth(g.width, g.height)) clear_screen();
     return g.screen_depth;
 }
 

@@ -55,11 +55,18 @@ with `goose file.goose` or builds with `goose build file.goose`
   region starts on a block; the mip's edge may cut its last ones), never read back, and
   have no generated mips. `format_supported(format, usage)` says whether the device takes
   one: ASTC on Apple silicon and phones, BC on desktop GPUs.
-- **`present(force)` ends each frame**, at the bottom of the loop: it submits the frame
-  and shows the screen if the frame drew into it, or if `force` (the window was exposed),
-  and says whether it showed one. Handed to gfx's `presented`, a frame that showed
-  nothing makes the next `gfx::frame()` wait for an event, so an idle program uses no GPU
-  and next to no CPU: drawing on demand is skipping the passes when nothing changed.
+- **`present()` ends each frame**, at the bottom of the loop: it submits the frame and
+  shows the screen if the frame drew into it, and says whether it showed one. Handed to
+  gfx's `presented`, a frame that showed nothing makes the next `gfx::frame()` wait for
+  an event, so an idle program uses no GPU and next to no CPU: drawing on demand is
+  skipping the passes when nothing changed, and drawing when gfx's `needs_present()`
+  says the window was exposed, shown, or resized.
+- **In a window, the screen is the window's image** (BGRA8): a frame's first pass into
+  it acquires the image and `present()` shows it. Only a pass can draw into it, and it
+  holds nothing of the last frame, so that pass clears it. It can't be sampled, read
+  back, updated, or saved; `screenshot` returns false there. A `flush()` after drawing
+  into it presents it, and a later pass acquires the next. Headless, the screen is an
+  RGBA8 texture that keeps what the last frame drew and can be read and saved.
 - **Main thread only**, as gfx: a `thread_fn` that reaches ngfx is a compile error, from
   `main_thread_only` in `ngfx.build`.
 
@@ -77,8 +84,8 @@ let size = gfx::screen_size();
 guard ngfx::open(gfx::native_window(), size.x, size.y, 0) else { ... }
 while gfx::frame() {                              // events; waits when idle
     ngfx::resize(gfx::screen_size());             // the screen follows the window
-    ...
-    gfx::presented(ngfx::present(gfx::needs_present()));
+    if changed || gfx::needs_present() { ... }    // draw into screen()
+    gfx::presented(ngfx::present());
 }
 ngfx::close();
 gfx::close();

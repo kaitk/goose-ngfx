@@ -186,7 +186,7 @@ fn main() {
         ngfx::begin_screen(float4 { backdrop.r, backdrop.g, backdrop.b, 1.0 });
         ngfx::end_pass();
         ngfx_ui::render(ctx);
-        gfx::presented(ngfx::present(gfx::needs_present()));
+        gfx::presented(ngfx::present());
         // Between frames: the context's font is baked again at the scale.
         if next_scale != ui::scale(ctx) { ui::set_scale(ctx, next_scale); }
         drawn++;

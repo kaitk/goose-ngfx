@@ -1,6 +1,5 @@
-// The screen across frames, headless: a frame that clears it draws into
-// another texture behind the same handles than the frame before, and a frame
-// that doesn't clear sees what the last frame drew, color and depth alike.
+// The screen across frames, headless: a frame that doesn't clear it sees
+// what the last frame drew, color and depth alike, and the handles stay.
 import std;
 import vec;
 import os;

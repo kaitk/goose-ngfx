@@ -117,17 +117,22 @@ fn main() {
             ngfx::draw(root, 6);
             ngfx::end_pass();
         }
-        gfx::presented(ngfx::present(gfx::needs_present()));
+        gfx::presented(ngfx::present());
         drawn++;
         if drawn == frames { break; }
     }
 
-    // Read back, which waits for the GPU, and count the pixels the quads
-    // cover: the background's blue is 20.
-    let px = ngfx::read_pixels(ngfx::screen());
-    var covered = 0;
-    for i in px.len / 4 { if px[i * 4 + 2] != 20 { covered++; } }
-    print("drew ", drawn, " frames of ", updates, " updates, covering ", covered, " pixels");
+    // Headless, read back, which waits for the GPU, and count the pixels the
+    // quads cover: the background's blue is 20. A window's screen is its
+    // image, which can't be read.
+    var covered = -1;
+    if gfx::native_window() == 0 {
+        let px = ngfx::read_pixels(ngfx::screen());
+        covered = 0;
+        for i in px.len / 4 { if px[i * 4 + 2] != 20 { covered++; } }
+    }
+    print("drew ", drawn, " frames of ", updates, " updates",
+          if covered >= 0 { str(", covering ", covered, " pixels") } else { "" });
     ngfx::close();
     gfx::close();
 }
