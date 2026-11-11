@@ -5,9 +5,11 @@ Graphics for [Goose](https://github.com/aardappel/goose) programs on Sebastian A
 Vulkan 1.4 with no bindings, no resource states, and GPU pointers in place of
 descriptors. Shaders are [Slang](https://github.com/shader-slang/slang).
 
-ngfx is a Goose package. It keeps Goose gfx's window, input, time, screen, textures, and
-read-back, and draws the way NoGraphicsAPI does: a draw takes the GPU address of a root
-struct the program fills, and shaders fetch their own vertices through pointers. Four of
+ngfx is a Goose package. It draws into a native window the program gives it, usually
+Goose gfx's opened `WINDOW_ONLY`, whose input, events, and time the program keeps using.
+It keeps gfx's screen, textures, and read-back, and draws the way NoGraphicsAPI does: a
+draw takes the GPU address of a root struct the program fills, and shaders fetch their
+own vertices through pointers. It links no SDL of its own. Four of
 Goose's samples are ported to it: a spinning cube, a ui to-do list, Mini Minecraft, and
 Mini Doom.
 
@@ -23,16 +25,26 @@ Declare the package in your program's root file, and import it:
 
 ```goose
 import vec;
-import ngfx from "github.com/kaitk/goose-ngfx@v0.3.0";
+import ngfx from "github.com/kaitk/goose-ngfx@v0.4.0";
+import gfx from "github.com/kaitk/goose_gfx@ngfx";      // gfx with WINDOW_ONLY
 
 fn main() {
-    guard ngfx::open("Hello, ngfx", 640, 480) else { abort(ngfx::error()); }
-    while ngfx::frame() {
+    guard gfx::open("Hello, ngfx", 640, 480, gfx::WINDOW_ONLY) else { abort(gfx::error()); }
+    let size = gfx::screen_size();
+    guard ngfx::open(gfx::native_window(), size.x, size.y, 0) else { abort(ngfx::error()); }
+    while gfx::frame() {
+        ngfx::resize(gfx::screen_size());
         ngfx::begin_screen(float4 { 0.1, 0.2, 0.3, 1.0 });
         ngfx::end_pass();
+        gfx::presented(ngfx::present(gfx::needs_present()));
     }
 }
 ```
+
+gfx's `WINDOW_ONLY` opens the window with no GPU device of its own, and runs input,
+events, time, and the wait of an idle program; ngfx presents, and tells gfx whether it
+did. Goose's own gfx doesn't have `WINDOW_ONLY` yet, so a program takes gfx from
+`kaitk/goose_gfx`'s `ngfx` branch until it does.
 
 `goose hello.goose` runs it in the compiler's process; `goose build hello.goose` makes an
 executable. The first time, the compiler fetches the package with its submodules into
@@ -61,13 +73,13 @@ driver, so there the GPU tests skip.
 ngfx.goose      the package's entry, namespace ngfx
 ngfx_ui.goose   import ngfx.ngfx_ui: Goose's ui drawn through ngfx
 ngfx.build      the sidecar: the CMake target ngfx is the native part
-CMakeLists.txt  the native part: SDL, NoGraphicsAPI, the layer, and its shaders
+CMakeLists.txt  the native part: NoGraphicsAPI, the layer, and its shaders
 native/         the C and C++ layer the modules' extern fns call, and its own shaders
 samples/        cube, ui_todo, mini_minecraft, mini_doom, with expected output
 test/           one program per test, with expected output in test/expected/
 scripts/        run_tests.py and api_check.py
 docs/           the API, the design, development setup, and the Goose findings log
-third_party/    NoGraphicsAPI and SDL, as submodules
+third_party/    NoGraphicsAPI, as a submodule (the kaitk fork), and stb's image headers
 ```
 
 The samples and tests declare the package from this checkout, `import ngfx from "../";`,
@@ -138,7 +150,6 @@ cd samples; & $env:GOOSE mini_minecraft.goose
 |---|---|---|
 | Goose | `aardappel/goose` `v2026.4` (`6c1fbc7`, 2026-11-05): the compiler tested with | The language, the package system, and the runtime ABI change often |
 | NoGraphicsAPI | `kaitk/NoGraphicsAPI` `ngfx`, `a6e78ed`: `sebbbi/NoGraphicsAPI` `0400414` with ASTC 6 × 6 added | Its API is young and changes without notice; the fork holds what ngfx needs before upstream has it |
-| SDL | `libsdl-org/SDL` `fa2c02b`, the commit `aardappel/goose_gfx` `v1` pins | A program that also imports `audio` or `ui` links both packages' SDL ([design](docs/design.md#how-it-is-built)) |
 
 Move a pin in its own commit, with the test results that still hold
 ([docs/development.md](docs/development.md#move-the-pins)).

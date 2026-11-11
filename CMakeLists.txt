@@ -1,5 +1,5 @@
-# The ngfx package's native part (ngfx.build): SDL3 from third_party/SDL,
-# NoGraphicsAPI from third_party/NoGraphicsAPI, and the layer that
+# The ngfx package's native part (ngfx.build): NoGraphicsAPI from
+# third_party/NoGraphicsAPI, and the layer that
 # ngfx.goose declares its extern fns against (native/), linked as the target
 # ngfx. The Goose compiler builds it through a wrapper project of its own
 # when a program imports ngfx (docs/development.md).
@@ -17,27 +17,6 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # The C runtime of Goose's runtime object and packages.
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
-
-# --- SDL ----------------------------------------------------------------------
-# Static, and configured as Goose's gfx package configures it
-# (github.com/aardappel/goose_gfx, CMakeLists.txt) at the same commit: a
-# program that imports ngfx and audio or ui links both packages' SDL, and the
-# linker takes each object from whichever comes first, so the two must be
-# the same build.
-if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/SDL/CMakeLists.txt")
-    message(FATAL_ERROR "No third_party/SDL: git submodule update --init")
-endif()
-set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-set(SDL_STATIC ON CACHE BOOL "" FORCE)
-set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
-set(SDL_CAMERA OFF CACHE BOOL "" FORCE)
-set(SDL_RENDER OFF CACHE BOOL "" FORCE)
-set(SDL_OPENGL OFF CACHE BOOL "" FORCE)
-set(SDL_OPENGLES OFF CACHE BOOL "" FORCE)
-# ngfx never opens a window on Linux, so SDL without X11 or Wayland will do.
-# This only skips SDL's check for them; with them, SDL builds as gfx's does.
-set(SDL_UNIX_CONSOLE_BUILD ON CACHE BOOL "" FORCE)
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/third_party/SDL" "${CMAKE_CURRENT_BINARY_DIR}/SDL" EXCLUDE_FROM_ALL)
 
 # --- the shader tools --------------------------------------------------------------
 # For the layer's own shaders now, and as the defaults ngfx::slang runs
@@ -148,7 +127,7 @@ add_library(ngfx STATIC
     native/ngfx_blob.h
     native/ngfx_internal.h
     native/ngfx_gpu.hpp
-    native/ngfx_platform.c
+    native/ngfx_core.c
     native/ngfx_device.cpp
     native/ngfx_resources.cpp
     native/ngfx_draw.cpp
@@ -156,7 +135,7 @@ add_library(ngfx STATIC
     "${NGFX_OUT}/ngfx_screen_code.h"
     "${NGFX_OUT}/ngfx_mips_code.h"
 )
-target_include_directories(ngfx PRIVATE native "${NGFX_OUT}")
+target_include_directories(ngfx PRIVATE native "${NGFX_OUT}" third_party/stb)
 # goose.h: the Goose compiler's wrapper project puts it on the include path.
 # A build of this project alone takes it from the checkout the compiler in
 # GOOSE was built from: the compiler has no option to write it out.
@@ -171,7 +150,7 @@ if(PROJECT_IS_TOP_LEVEL)
     endif()
     target_include_directories(ngfx PRIVATE "${NGFX_GOOSE_H_DIR}")
 endif()
-target_link_libraries(ngfx PRIVATE SDL3::SDL3-static NoGraphicsAPI::NoGraphicsAPI NoGraphicsAPIUtility::uploads
+target_link_libraries(ngfx PRIVATE NoGraphicsAPI::NoGraphicsAPI NoGraphicsAPIUtility::uploads
                       NoGraphicsAPIUtility::textures NoGraphicsAPIUtility::allocators)
 target_compile_definitions(ngfx PRIVATE
     NGFX_SLANGC_PATH="${NGFX_SLANGC}"

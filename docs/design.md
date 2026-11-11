@@ -91,10 +91,9 @@ These choices follow NoGraphicsAPI rather than the rest of Goose. Each is delibe
   links the C++ runtime.
 - **A high hardware bar**: macOS 26 and Metal 4, or Vulkan 1.4.357 with descriptor heaps,
   64-bit only, and CMake 3.25.
-- **Duplication with gfx and ui.** The platform half of `native/ngfx_platform.c` is a
-  copy of gfx's `src/gfx/gfx_device.c` (`aardappel/goose_gfx` `737d91a`: fullscreen,
-  pixel density and display scale, system cursors, and gamepads) with `ngfx_` names, and `ngfx_ui.goose` repeats
-  ui's 90-line input bridge. Sharing either would change Goose's gfx package.
+- **A window from elsewhere.** ngfx has no platform: it draws into a native window the
+  program gives it, in practice gfx's opened `WINDOW_ONLY`, which Goose's gfx doesn't
+  have yet (`kaitk/goose_gfx`'s `ngfx` branch has it, proposed upstream).
 
 ## How it is built
 
@@ -103,18 +102,14 @@ packed C structs, `let` constants, `ngfx_` names, and one X-macro list (`NGFX_AP
 `native/ngfx_api.h`) that expands into the prototypes and that `scripts/api_check.py`
 compares with the `extern` declarations in `ngfx.goose`.
 
-- `native/ngfx_platform.c`: window, input, and time over SDL3, from gfx. The package
-  builds its own SDL3, at the commit and with the options of Goose's gfx package, since
-  a package's C is self-contained (Goose's `docs/packages.md`, "The native part"). A
-  program that also imports `audio` or `ui` links two identical SDL archives, and the
-  linker takes one; a `goose run` loads one per package, so the program has two SDL
-  states, one with ngfx's window and one with audio's device.
+- `native/ngfx_core.c`: errors, open and close, `present` and `resize`, and PNG through
+  stb_image (`third_party/stb`).
 - `native/ngfx_device.cpp`, `ngfx_resources.cpp`, `ngfx_draw.cpp`, `ngfx_gpu.hpp`: the GPU
   half over NoGraphicsAPI and NoGraphicsAPIUtility.
 - `native/ngfx_slang.cpp`: `ngfx::slang`.
 - `native/ngfx_screen.slang`, `ngfx_mips.slang`: the layer's own shaders, compiled when
   the layer is built and embedded as byte arrays (`cmake/bin2h.cmake`).
-- `CMakeLists.txt` builds SDL, NoGraphicsAPI, the shaders, and the layer, as the target
+- `CMakeLists.txt` builds NoGraphicsAPI, the shaders, and the layer, as the target
   `ngfx` that `ngfx.build` names; the Goose compiler builds it when a program imports
   ngfx ([development.md](development.md#how-a-program-is-built)).
 
@@ -157,7 +152,7 @@ compares with the `extern` declarations in `ngfx.goose`.
 - **Every texture gets a descriptor slot** in heaps the module owns. NoGraphicsAPI leaves
   heaps to the application, but gfx programs never managed them.
 - **The screen is an offscreen RGBA8 texture**, copied to the swapchain by a fullscreen
-  draw at `frame()`. NoGraphicsAPI gives the swapchain image only as a render target, and
+  draw at `present()`. NoGraphicsAPI gives the swapchain image only as a render target, and
   this is what makes `screenshot`, `read_pixels`, and headless mode possible. The copy
   does no sRGB conversion, as gfx's swapchain does.
 - **The screen and its depth have a texture per frame in flight behind each handle**, so
@@ -165,7 +160,7 @@ compares with the `extern` declarations in `ngfx.goose`.
   `cycle`. A pass that clears the screen or its depth as the frame's first use of it
   switches the handle to the texture used longest ago. Any other first use (a pass that
   loads, `index`, read-back) keeps the texture, so what a frame doesn't clear holds what
-  the last frame drew, as in gfx, and `screenshot` after `frame()` sees the last frame.
+  the last frame drew, as in gfx, and `screenshot` after `present()` sees the last frame.
   `index(screen())` holds only for the frame it is taken in. It costs one more screen
   and depth: 8 MB at 1280 x 800.
 - **`draw_indexed` takes its indices as a `Range`**, an address and a size, as
@@ -194,14 +189,19 @@ compares with the `extern` declarations in `ngfx.goose`.
   draw into, so they can't drift from them, `PipelineDesc` keeps gfx's fields, and one
   pipeline can be prepared for several passes. The samples prepare theirs for the
   screen (`prepare_screen`), and `ngfx_ui::prepare()` does the same for the ui.
-- **Draw on demand is a window flag, `WINDOW_ON_DEMAND`**, not a separate call. A frame
-  that drew nothing into the screen isn't presented, and the next `frame()` waits in
-  `SDL_WaitEventTimeout` for up to a second instead of returning at once. The layer sees
-  whether a pass drew into the screen, so a program draws on demand by skipping its
-  passes when nothing changed, with no other change to its loop; a window the system
-  exposes again is presented again from the screen as it stands. The wait is capped so a program that animates on a
-  timer of its own still gets a frame a second without an event. Without the flag
-  `frame()` presents every frame, as gfx does.
+- **No platform: ngfx draws into a window the program gives it** (2026-11-11), replacing
+  the platform half copied from gfx over an SDL of ngfx's own. NoGraphicsAPI takes a
+  native window and needs no SDL. With its own, ngfx put two SDLs in any process that
+  also used gfx, `audio`, or `ui` (the objc runtime warned of every class twice on the
+  Mac), duplicated gfx's platform code, and kept a program from choosing between gfx and
+  ngfx at run time. `open` takes the window's native handle; `present(force)` ends the
+  frame and says whether it showed one, which the program hands to its platform's wait.
+  gfx's `WINDOW_ONLY` is that platform for Goose programs: it opens the window without
+  a device and keeps input, events, time, and the idle wait, so draw on demand is gfx's
+  wait and ngfx's knowing whether a pass drew into the screen, and a window the system
+  exposes is presented again through `needs_present()`. Rejected: ngfx's platform on the
+  program's SDL with no SDL built (still a second copy of gfx's platform code); a
+  program's own host straight on SDL (every program would write one).
 - **The name is `ngfx`.** It reads as gfx on NoGraphicsAPI. `gfx2` would presume it
   replaces gfx, `gpu` is NoGraphicsAPI's C++ namespace, and `nogfx` reads as "no graphics".
 - `CULL_BACK` with counterclockwise front faces is NoGraphicsAPI's `CullMode::clockwise`,

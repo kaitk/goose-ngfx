@@ -20,6 +20,7 @@ import vec;
 import math;
 import os;
 import ngfx from "../";
+import gfx from "../../goose_gfx";
 
 // One corner of one face: where it is, which way the face points, and the
 // face's color as four bytes, which the shader unpacks to a float4 from 0
@@ -63,7 +64,14 @@ fn main() {
         let n, ok = parse_int(argv[2]);
         if ok { frames = n; }
     }
-    guard ngfx::open("Goose: an ngfx cube", 640, 480, ngfx::WINDOW_RESIZABLE) else {
+    // gfx's window, input and events, with no device of its own; ngfx draws
+    // into it.
+    guard gfx::open("Goose: an ngfx cube", 640, 480, gfx::WINDOW_RESIZABLE | gfx::WINDOW_ONLY) else {
+        write_stderr(str("gfx: ", gfx::error(), "\n"));
+        return;
+    }
+    let window = gfx::screen_size();
+    guard ngfx::open(gfx::native_window(), window.x, window.y, 0) else {
         write_stderr(str("ngfx: ", ngfx::error(), "\n"));
         return;
     }
@@ -114,15 +122,16 @@ fn main() {
     var yaw: f32 = 0.6;
     var pitch: f32 = 0.5;
     var drawn = 0;
-    while ngfx::frame() {
-        if ngfx::key_pressed("Escape") { break; }
-        if ngfx::key_down("Left") { yaw -= 0.04; }
-        if ngfx::key_down("Right") { yaw += 0.04; }
-        if ngfx::key_down("Up") { pitch -= 0.04; }
-        if ngfx::key_down("Down") { pitch += 0.04; }
+    while gfx::frame() {
+        if gfx::key_pressed("Escape") { break; }
+        if gfx::key_down("Left") { yaw -= 0.04; }
+        if gfx::key_down("Right") { yaw += 0.04; }
+        if gfx::key_down("Up") { pitch -= 0.04; }
+        if gfx::key_down("Down") { pitch += 0.04; }
         yaw += 0.01;
 
         // The screen follows the window's size, and the projection its shape.
+        ngfx::resize(gfx::screen_size());
         let size = ngfx::screen_size();
         let aspect = size.x as f32 / size.y;
         let model = ngfx::mul(ngfx::rotate(float3 { 1.0, 0.0, 0.0 }, pitch),
@@ -136,6 +145,7 @@ fn main() {
             view_proj: ngfx::mul(ngfx::perspective(0.8, aspect, 0.1, 20.0), view) });
         ngfx::draw_indexed(root, index_buffer, 2, indices.len);
         ngfx::end_pass();
+        gfx::presented(ngfx::present(gfx::needs_present()));
         drawn++;
         if drawn == frames { break; }
     }
@@ -151,4 +161,5 @@ fn main() {
     print("drew ", drawn, " frames; cube in the middle: ", cube_there, "; saved ngfx_cube.png: ",
           saved);
     ngfx::close();
+    gfx::close();
 }

@@ -44,6 +44,7 @@ import vec;
 import math;
 import os;
 import ngfx from "../";
+import gfx from "../../goose_gfx";
 
 // --- blocks and game state ----------------------------------------------------
 
@@ -1437,8 +1438,14 @@ fn main() {
         if frames < 0 { return; }
     }
     generate(seed);
-    guard ngfx::open("Goose: mini Minecraft", 1280, 800, ngfx::WINDOW_RESIZABLE) else {
-        write_stderr(str("gfx: ", ngfx::error(), "\n"));
+    // gfx's window, input and events, with no device; ngfx draws into it.
+    guard gfx::open("Goose: mini Minecraft", 1280, 800, gfx::WINDOW_RESIZABLE | gfx::WINDOW_ONLY) else {
+        write_stderr(str("gfx: ", gfx::error(), "\n"));
+        return;
+    }
+    let window = gfx::screen_size();
+    guard ngfx::open(gfx::native_window(), window.x, window.y, 0) else {
+        write_stderr(str("ngfx: ", ngfx::error(), "\n"));
         return;
     }
     let atlas = make_atlas();
@@ -1457,7 +1464,7 @@ fn main() {
     }
     rebuild_dirty();
     var crafting = false;
-    var paused = !ngfx::focused();
+    var paused = !gfx::focused();
     var help = true;
     var drawn = 0;
     var elapsed: f32 = 0.0;
@@ -1467,53 +1474,54 @@ fn main() {
     var place_delay: f32 = 0.0;
     var wait_for_buttons = false;
     let keys: const u8[:][SLOTS] = ["1", "2", "3", "4", "5", "6", "7", "8"];
-    if !paused && !ngfx::set_mouse_relative(true) { say("MOUSE CAPTURE FAILED - USE ARROW KEYS TO LOOK"); }
+    if !paused && !gfx::set_mouse_relative(true) { say("MOUSE CAPTURE FAILED - USE ARROW KEYS TO LOOK"); }
 
-    while ngfx::frame() {
+    while gfx::frame() {
+        ngfx::resize(gfx::screen_size());
         let pixels = ngfx::screen_size();
         if pixels.x <= 0 || pixels.y <= 0 {
             paused = true;
             crafting = false;
             progress = 0.0;
             accumulator = 0.0;
-            ngfx::set_mouse_relative(false);
+            gfx::set_mouse_relative(false);
             continue;
         }
         // A logical canvas keeps the HUD legible on high-density screens.
         let scale = max(0.5, min<f32>(pixels.x / 960.0, pixels.y / 600.0));
         let screen = float2 { pixels.x / scale, pixels.y / scale };
-        let mouse = ngfx::mouse_pos() / float2 { scale, scale };
-        let dt: f32 = if frames > 0 { 1.0 / 60.0 } else { min(ngfx::delta_time(), 0.05) as f32 };
+        let mouse = gfx::mouse_pos() / float2 { scale, scale };
+        let dt: f32 = if frames > 0 { 1.0 / 60.0 } else { min(gfx::delta_time(), 0.05) as f32 };
         message_time = max(0.0, message_time - dt);
         let was_playing = !paused && !crafting;
         let was_crafting = crafting;
         // A loss followed by a gain in the same frame must still pause.
         // gfx clears held input and releases capture on every focus loss.
-        var lost_focus = !ngfx::focused();
-        for event in ngfx::events() {
-            if event.kind == ngfx::EVENT_FOCUS_LOST { lost_focus = true; }
+        var lost_focus = !gfx::focused();
+        for event in gfx::events() {
+            if event.kind == gfx::EVENT_FOCUS_LOST { lost_focus = true; }
         }
         if lost_focus { paused = true; crafting = false; }
         else {
-            if ngfx::key_pressed("H") { help = !help; }
-            if ngfx::key_pressed("Escape") {
+            if gfx::key_pressed("H") { help = !help; }
+            if gfx::key_pressed("Escape") {
                 if crafting { crafting = false; } else { paused = !paused; }
-            } else if paused && ngfx::mouse_pressed(ngfx::MOUSE_LEFT) { paused = false; }
-            else if ngfx::key_pressed("C") && !paused { crafting = !crafting; }
-            if ngfx::key_pressed("F5") { save_game(); }
-            if ngfx::key_pressed("F9") { load_game(); progress = 0.0; accumulator = 0.0; }
+            } else if paused && gfx::mouse_pressed(gfx::MOUSE_LEFT) { paused = false; }
+            else if gfx::key_pressed("C") && !paused { crafting = !crafting; }
+            if gfx::key_pressed("F5") { save_game(); }
+            if gfx::key_pressed("F9") { load_game(); progress = 0.0; accumulator = 0.0; }
         }
         let playing = !paused && !crafting;
         if playing != was_playing {
             // The default visible cursor returns in menus. Changing capture
             // also discards stale motion, so reopening the game cannot jump.
-            if !ngfx::set_mouse_relative(playing) && playing {
+            if !gfx::set_mouse_relative(playing) && playing {
                 say("MOUSE CAPTURE FAILED - USE ARROW KEYS TO LOOK");
             }
             wait_for_buttons = true;
         }
         // A resume/menu click must be released before it can mine or build.
-        if !ngfx::mouse_down(ngfx::MOUSE_LEFT) && !ngfx::mouse_down(ngfx::MOUSE_RIGHT) {
+        if !gfx::mouse_down(gfx::MOUSE_LEFT) && !gfx::mouse_down(gfx::MOUSE_RIGHT) {
             wait_for_buttons = false;
         }
 
@@ -1522,10 +1530,10 @@ fn main() {
             let y = (screen.y - 300.0) * 0.5 + 78.0;
             for i in 4 {
                 let row_y = y + i * 46.0;
-                let clicked = ngfx::mouse_pressed(ngfx::MOUSE_LEFT) && mouse.x >= x + 16.0 &&
+                let clicked = gfx::mouse_pressed(gfx::MOUSE_LEFT) && mouse.x >= x + 16.0 &&
                     mouse.x < x + 488.0 && mouse.y >= row_y && mouse.y < row_y + 40.0;
-                if clicked || ngfx::key_pressed(keys[i]) {
-                    craft_batches(i, ngfx::key_down("Left Shift") || ngfx::key_down("Right Shift"));
+                if clicked || gfx::key_pressed(keys[i]) {
+                    craft_batches(i, gfx::key_down("Left Shift") || gfx::key_down("Right Shift"));
                 }
             }
         }
@@ -1533,41 +1541,41 @@ fn main() {
             elapsed += dt;
             advance_time(dt);
             animate_debris(dt);
-            for i in SLOTS { if ngfx::key_pressed(keys[i]) { game.selected = i as i32; } }
-            let wheel = ngfx::mouse_wheel();
+            for i in SLOTS { if gfx::key_pressed(keys[i]) { game.selected = i as i32; } }
+            let wheel = gfx::mouse_wheel();
             if wheel != 0.0 {
                 let step = if wheel > 0.0 { -1 } else { 1 };
                 game.selected = ((game.selected + step + SLOTS) % SLOTS) as i32;
             }
-            if ngfx::mouse_relative() {
-                let delta = ngfx::mouse_delta();
+            if gfx::mouse_relative() {
+                let delta = gfx::mouse_delta();
                 game.player.yaw += delta.x * 0.003;
                 game.player.pitch -= delta.y * 0.003;
             }
-            if ngfx::key_down("Left") { game.player.yaw -= dt * 1.8; }
-            if ngfx::key_down("Right") { game.player.yaw += dt * 1.8; }
-            if ngfx::key_down("Up") { game.player.pitch += dt * 1.5; }
-            if ngfx::key_down("Down") { game.player.pitch -= dt * 1.5; }
+            if gfx::key_down("Left") { game.player.yaw -= dt * 1.8; }
+            if gfx::key_down("Right") { game.player.yaw += dt * 1.8; }
+            if gfx::key_down("Up") { game.player.pitch += dt * 1.5; }
+            if gfx::key_down("Down") { game.player.pitch -= dt * 1.5; }
             game.player.pitch = clamp(game.player.pitch, -1.5, 1.5);
             game.player.yaw = (game.player.yaw + PI) % TAU - PI;
 
             var direction = float2_0;
-            if ngfx::key_down("W") { direction.y += 1.0; }
-            if ngfx::key_down("S") { direction.y -= 1.0; }
-            if ngfx::key_down("D") { direction.x += 1.0; }
-            if ngfx::key_down("A") { direction.x -= 1.0; }
+            if gfx::key_down("W") { direction.y += 1.0; }
+            if gfx::key_down("S") { direction.y -= 1.0; }
+            if gfx::key_down("D") { direction.x += 1.0; }
+            if gfx::key_down("A") { direction.x -= 1.0; }
             accumulator += dt;
-            let sneak = ngfx::key_down("Left Ctrl") || ngfx::key_down("Right Ctrl");
+            let sneak = gfx::key_down("Left Ctrl") || gfx::key_down("Right Ctrl");
             while accumulator >= STEP {
-                walk(direction, ngfx::key_down("Space"), ngfx::key_down("Left Shift"), sneak);
+                walk(direction, gfx::key_down("Space"), gfx::key_down("Left Shift"), sneak);
                 accumulator -= STEP;
             }
         } else { accumulator = 0.0; }
 
         var hit = ray(eye(), forward(), 6.0);
         if playing && was_playing && !wait_for_buttons {
-            if ngfx::mouse_pressed(ngfx::MOUSE_MIDDLE) { pick_material(hit); }
-            if hit.found && ngfx::mouse_down(ngfx::MOUSE_LEFT) {
+            if gfx::mouse_pressed(gfx::MOUSE_MIDDLE) { pick_material(hit); }
+            if hit.found && gfx::mouse_down(gfx::MOUSE_LEFT) {
                 if hit.at != mining_at { progress = 0.0; mining_at = hit.at; }
                 let seconds = mining_seconds(block_at(hit.at));
                 if seconds > 0.0 { progress += dt / seconds; } else { progress = 0.0; }
@@ -1580,8 +1588,8 @@ fn main() {
             // Edges include a press and release between frames. Held input
             // repeats slowly enough to build a wall without emptying a stack.
             place_delay = max(0.0, place_delay - dt);
-            if ngfx::key_pressed("E") || ngfx::mouse_pressed(ngfx::MOUSE_RIGHT) ||
-               (place_delay == 0.0 && (ngfx::key_down("E") || ngfx::mouse_down(ngfx::MOUSE_RIGHT))) {
+            if gfx::key_pressed("E") || gfx::mouse_pressed(gfx::MOUSE_RIGHT) ||
+               (place_delay == 0.0 && (gfx::key_down("E") || gfx::mouse_down(gfx::MOUSE_RIGHT))) {
                 place(hit);
                 place_delay = 0.22;
                 hit = ray(eye(), forward(), 6.0);
@@ -1648,10 +1656,11 @@ fn main() {
                        hud_vertices.len);
         }
         ngfx::end_pass();
-        if ngfx::key_pressed("F12") {
+        if gfx::key_pressed("F12") {
             if ngfx::screenshot("ngfx_mini_minecraft.png") { say("SAVED NGFX_MINI_MINECRAFT.PNG"); }
             else { say("SCREENSHOT FAILED"); }
         }
+        gfx::presented(ngfx::present(gfx::needs_present()));
         drawn++;
         if drawn == frames { break; }
     }
@@ -1661,4 +1670,5 @@ fn main() {
     }
     // close releases every remaining GPU object, including chunk buffers.
     ngfx::close();
+    gfx::close();
 }

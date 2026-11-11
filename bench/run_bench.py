@@ -129,9 +129,11 @@ def git(cwd, *args):
 
 def patch(text, side, mine):
     """The program with the timing hooks in: each hook point must be there once."""
+    # Both sides run on gfx's window and frames; ngfx's opens it WINDOW_ONLY.
     mod = side
-    points = [(f"{mod}::WINDOW_RESIZABLE)", "bench_open_flags())"),
-              (f"while {mod}::frame() {{", "while bench_frame() {"),
+    flags = "gfx::WINDOW_RESIZABLE | gfx::WINDOW_ONLY)" if side == "ngfx" else "gfx::WINDOW_RESIZABLE)"
+    points = [(flags, "bench_open_flags()" + (" | gfx::WINDOW_ONLY)" if side == "ngfx" else ")")),
+              ("while gfx::frame() {", "while bench_frame() {"),
               (f"\n    {mod}::close();", f"\n    bench_report();\n    {mod}::close();")]
     if mine:
         points.append(("\n        rebuild_dirty();\n", "\n        bench_mine();\n        rebuild_dirty();\n"))
@@ -141,11 +143,12 @@ def patch(text, side, mine):
         text = text.replace(old, new)
     no_vsync = (" | (if bench_on(\"GOOSE_BENCH_NO_VSYNC\") { gfx::NO_VSYNC } else { 0 })"
                 if side == "gfx" else "")
-    hooks = PATCH.replace("MOD", mod).replace(" NO_VSYNC", no_vsync) + (MINE if mine else "")
+    hooks = PATCH.replace("MOD", "gfx").replace(" NO_VSYNC", no_vsync) + (MINE if mine else "")
     at = text.index("\nfn main()")
     text = text[:at] + "\n" + hooks + text[at:]
     if side == "ngfx":
         text = text.replace('import ngfx from "../";', 'import ngfx from "../../../../";')
+        text = text.replace('import gfx from "../../goose_gfx";', 'import gfx from "../../../../../goose_gfx";')
     return text
 
 

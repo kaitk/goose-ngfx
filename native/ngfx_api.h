@@ -3,11 +3,14 @@
    into the prototypes below, and scripts/api_check.py checks
    ngfx.goose against it.
 
-   ngfx is gfx's platform half (window, input, time, the screen, textures and
-   read-back) over NoGraphicsAPI, with NoGraphicsAPI's way of drawing: a draw
-   takes the GPU address of a root struct the program fills, buffers are
-   plain GPU memory with addresses, and textures and samplers are indices
-   into heaps the layer owns (docs/design.md).
+   ngfx draws, over NoGraphicsAPI, into a native window the program gives it
+   (a CAMetalLayer on Apple's systems, an HWND on Windows), or headless; the
+   window, input, events and time are the program's, usually gfx's opened
+   WINDOW_ONLY. It keeps gfx's screen, textures and read-back, with
+   NoGraphicsAPI's way of drawing: a draw takes the GPU address of a root
+   struct the program fills, buffers are plain GPU memory with addresses, and
+   textures and samplers are indices into heaps the layer owns
+   (docs/design.md).
 
    The conventions are gfx's (src/gfx/gfx_api.h): what crosses is what
    `extern fn` can pass; structs are packed and declared again in
@@ -28,8 +31,6 @@
 extern "C" {
 #endif
 
-enum { NGFX_MAX_GAMEPADS = 4 };
-
 #pragma pack(push, 1)
 
 typedef struct { uint8_t *data; int64_t len; } ngfx_bytes;   /* u8[:] */
@@ -42,22 +43,6 @@ typedef struct { uint32_t id; } ngfx_compute_pipeline;
 
 /* GPU memory: an address and the bytes from it. */
 typedef struct { uint64_t address; int64_t size; } ngfx_range;
-
-/* One input event of a frame, as gfx's. */
-typedef struct {
-    int32_t kind;
-    int32_t scancode;
-    int32_t keycode;
-    int32_t mods;
-    uint8_t down;
-    uint8_t repeat;
-    int32_t button;
-    int32_t clicks;
-    uint32_t codepoint;
-    float x, y;
-} ngfx_event;
-
-typedef struct { ngfx_event *data; int64_t len; } ngfx_event_slice;
 
 typedef struct { int32_t x, y; } ngfx_int2;
 typedef struct { float x, y; } ngfx_float2;
@@ -107,66 +92,22 @@ typedef struct {
 #pragma pack(pop)
 
 #define NGFX_API(X) \
-    /* Device, window and frames. */ \
+    /* Device and frames. */ \
     X(uint8_t, ngfx_available, (void)) \
-    X(uint8_t, ngfx_open, (ngfx_bytes title, int64_t width, int64_t height, int64_t flags)) \
+    X(uint8_t, ngfx_open, (uint64_t window, int64_t width, int64_t height, int64_t flags)) \
     X(uint8_t, ngfx_open_headless, (int64_t width, int64_t height, int64_t flags)) \
     X(void, ngfx_close, (void)) \
     X(void, ngfx_error, (gs_rref out)) \
     X(int64_t, ngfx_misuse_count, (void)) \
     X(void, ngfx_driver, (gs_rref out)) \
-    X(uint8_t, ngfx_frame, (void)) \
-    X(void, ngfx_quit, (void)) \
+    X(uint8_t, ngfx_present, (uint8_t force)) \
+    X(void, ngfx_resize, (int64_t width, int64_t height)) \
     X(void, ngfx_flush, (void)) \
-    X(void, ngfx_set_title, (ngfx_bytes title)) \
-    X(uint8_t, ngfx_set_fullscreen, (uint8_t on)) \
-    X(uint8_t, ngfx_fullscreen, (void)) \
-    X(void, ngfx_maximize, (void)) \
     X(void, ngfx_screen_size, (ngfx_int2 *out)) \
-    X(float, ngfx_pixel_density, (void)) \
-    X(float, ngfx_display_scale, (void)) \
     X(ngfx_texture, ngfx_screen, (void)) \
     X(ngfx_texture, ngfx_screen_depth, (void)) \
-    X(double, ngfx_time, (void)) \
-    X(double, ngfx_delta_time, (void)) \
     X(int64_t, ngfx_frame_count, (void)) \
     X(int64_t, ngfx_open_count, (void)) \
-    /* Input. */ \
-    X(uint8_t, ngfx_key_down, (ngfx_bytes name)) \
-    X(uint8_t, ngfx_key_pressed, (ngfx_bytes name)) \
-    X(uint8_t, ngfx_key_released, (ngfx_bytes name)) \
-    X(uint8_t, ngfx_mouse_down, (int64_t button)) \
-    X(uint8_t, ngfx_mouse_pressed, (int64_t button)) \
-    X(uint8_t, ngfx_mouse_released, (int64_t button)) \
-    X(void, ngfx_mouse_pos, (ngfx_float2 *out)) \
-    X(void, ngfx_mouse_delta, (ngfx_float2 *out)) \
-    X(float, ngfx_mouse_wheel, (void)) \
-    X(uint8_t, ngfx_mouse_in_window, (void)) \
-    X(uint8_t, ngfx_focused, (void)) \
-    X(uint8_t, ngfx_set_mouse_relative, (uint8_t on)) \
-    X(uint8_t, ngfx_mouse_relative, (void)) \
-    X(uint8_t, ngfx_set_cursor, (int64_t shape)) \
-    X(uint8_t, ngfx_set_cursor_visible, (uint8_t visible)) \
-    X(uint8_t, ngfx_cursor_visible, (void)) \
-    X(uint8_t, ngfx_inject_focus, (uint8_t focused)) \
-    X(uint8_t, ngfx_inject_key, (ngfx_bytes name, uint8_t down)) \
-    /* Gamepads. */ \
-    X(uint8_t, ngfx_gamepad_connected, (int64_t slot)) \
-    X(int64_t, ngfx_gamepad_changes, (void)) \
-    X(int64_t, ngfx_gamepad_type, (int64_t slot)) \
-    X(float, ngfx_gamepad_axis, (int64_t slot, int64_t axis)) \
-    X(uint8_t, ngfx_gamepad_down, (int64_t slot, int64_t button)) \
-    X(uint8_t, ngfx_gamepad_pressed, (int64_t slot, int64_t button)) \
-    X(uint8_t, ngfx_gamepad_released, (int64_t slot, int64_t button)) \
-    X(uint8_t, ngfx_gamepad_rumble, (int64_t slot, float low, float high, int64_t ms)) \
-    X(void, ngfx_inject_mouse, (float x, float y, int64_t button, uint8_t down)) \
-    X(int64_t, ngfx_events, (ngfx_event_slice out)) \
-    X(void, ngfx_text_input, (uint8_t on)) \
-    X(uint8_t, ngfx_inject_text, (ngfx_bytes text)) \
-    X(int64_t, ngfx_scancode, (ngfx_bytes name)) \
-    X(void, ngfx_key_name, (int64_t scancode, gs_rref out)) \
-    X(void, ngfx_clipboard, (gs_rref out)) \
-    X(uint8_t, ngfx_set_clipboard, (ngfx_bytes text)) \
     /* Buffers: GPU memory with an address, and this frame's data. */ \
     X(ngfx_buffer, ngfx_create_buffer, (int64_t size, ngfx_bytes data)) \
     X(uint8_t, ngfx_update_buffer, (ngfx_buffer b, int64_t offset, ngfx_bytes data)) \
@@ -225,31 +166,7 @@ NGFX_API(NGFX_PROTO)
    are NGFX_<name>. The ones gfx also has keep gfx's values. */
 #define NGFX_CONSTANTS(X) \
     /* open() and open_headless() flags. */ \
-    X(i32, WINDOW_RESIZABLE, 1) \
-    X(i32, WINDOW_HIDDEN, 2) \
-    X(i32, WINDOW_FULLSCREEN, 4) \
-    X(i32, WINDOW_ON_DEMAND, 64) \
-    /* System cursor shapes, SDL_SystemCursor. */ \
-    X(i32, CURSOR_DEFAULT, 0) \
-    X(i32, CURSOR_TEXT, 1) \
-    X(i32, CURSOR_WAIT, 2) \
-    X(i32, CURSOR_CROSSHAIR, 3) \
-    X(i32, CURSOR_PROGRESS, 4) \
-    X(i32, CURSOR_NWSE_RESIZE, 5) \
-    X(i32, CURSOR_NESW_RESIZE, 6) \
-    X(i32, CURSOR_EW_RESIZE, 7) \
-    X(i32, CURSOR_NS_RESIZE, 8) \
-    X(i32, CURSOR_MOVE, 9) \
-    X(i32, CURSOR_NOT_ALLOWED, 10) \
-    X(i32, CURSOR_POINTER, 11) \
-    X(i32, CURSOR_NW_RESIZE, 12) \
-    X(i32, CURSOR_N_RESIZE, 13) \
-    X(i32, CURSOR_NE_RESIZE, 14) \
-    X(i32, CURSOR_E_RESIZE, 15) \
-    X(i32, CURSOR_SE_RESIZE, 16) \
-    X(i32, CURSOR_S_RESIZE, 17) \
-    X(i32, CURSOR_SW_RESIZE, 18) \
-    X(i32, CURSOR_W_RESIZE, 19) \
+    X(i32, NO_VSYNC, 16) \
     /* Texture kinds. */ \
     X(i32, TEXTURE_2D, 0) \
     X(i32, TEXTURE_2D_ARRAY, 1) \
@@ -342,25 +259,7 @@ NGFX_API(NGFX_PROTO)
     X(i32, VERTEX_READ, 262148) \
     X(i32, FRAGMENT_READ, 262208) \
     X(i32, TARGET_WRITE, 10485920) \
-    X(i32, INDEX_READ, 33554434) \
-    /* Mouse buttons. */ \
-    X(i32, MOUSE_LEFT, 1) \
-    X(i32, MOUSE_MIDDLE, 2) \
-    X(i32, MOUSE_RIGHT, 3) \
-    X(i32, MOUSE_X1, 4) \
-    X(i32, MOUSE_X2, 5) \
-    /* Input events, and the modifier keys held with a key. */ \
-    X(i32, EVENT_KEY, 1) \
-    X(i32, EVENT_TEXT, 2) \
-    X(i32, EVENT_MOUSE_MOTION, 3) \
-    X(i32, EVENT_MOUSE_BUTTON, 4) \
-    X(i32, EVENT_MOUSE_WHEEL, 5) \
-    X(i32, EVENT_FOCUS_GAINED, 6) \
-    X(i32, EVENT_FOCUS_LOST, 7) \
-    X(i32, MOD_SHIFT, 1) \
-    X(i32, MOD_CTRL, 2) \
-    X(i32, MOD_ALT, 4) \
-    X(i32, MOD_GUI, 8)
+    X(i32, INDEX_READ, 33554434)
 
 #define NGFX_ENUM(type, name, value) NGFX_##name = value,
 enum { NGFX_CONSTANTS(NGFX_ENUM) };

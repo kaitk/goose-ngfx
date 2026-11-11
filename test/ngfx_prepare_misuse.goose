@@ -18,6 +18,6 @@ fn main() {
         float4 f() : SV_Target0 { return float4(1.0, 1.0, 1.0, 1.0); }
         """));
     print("preparing for no targets: ", ngfx::prepare(p, ngfx::PassDesc {}));
-    ngfx::frame();
+    ngfx::present();
     print("not reached");
 }

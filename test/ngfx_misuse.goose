@@ -15,6 +15,6 @@ fn main() {
     ngfx::begin_screen(float4 { 0.0, 0.0, 0.0, 1.0 });
     ngfx::draw(0, 3);
     ngfx::end_pass();
-    ngfx::frame();
+    ngfx::present();
     print("not reached");
 }

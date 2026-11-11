@@ -12,6 +12,7 @@ import vec;
 import math;
 import os;
 import ngfx from "../";
+import gfx from "../../goose_gfx";
 
 // The draw's root, as the shader declares it: the corners, then the quad's
 // offset and size in clip space, then its color.
@@ -33,7 +34,11 @@ fn main() {
         else { abort("usage: draws_ngfx --frames F --draws N [--indexed]"); }
         a += 2;
     }
-    guard ngfx::open("ngfx draws", 1280, 800, ngfx::WINDOW_RESIZABLE) else {
+    guard gfx::open("ngfx draws", 1280, 800, gfx::WINDOW_RESIZABLE | gfx::WINDOW_ONLY) else {
+        abort(str("gfx: ", gfx::error()));
+    }
+    let window = gfx::screen_size();
+    guard ngfx::open(gfx::native_window(), window.x, window.y, 0) else {
         abort(str("ngfx: ", ngfx::error()));
     }
 
@@ -80,7 +85,8 @@ fn main() {
     let cell: f32 = 2.0 / side;
     let address = ngfx::address(vertex_buffer);
     var drawn = 0;
-    while ngfx::frame() {
+    while gfx::frame() {
+        ngfx::resize(gfx::screen_size());
         let shift = (drawn % 60) / 60.0;
         ngfx::begin_screen(float4 { 0.05, 0.05, 20.0 / 255.0, 1.0 });
         ngfx::bind(quad_pipeline);
@@ -95,6 +101,7 @@ fn main() {
             else { ngfx::draw(root, 6); }
         }
         ngfx::end_pass();
+        gfx::presented(ngfx::present(gfx::needs_present()));
         drawn++;
         if drawn == frames { break; }
     }
@@ -107,4 +114,5 @@ fn main() {
     print("drew ", drawn, " frames of ", draws, if indexed { " indexed" } else { "" },
           " draws, covering ", covered, " pixels");
     ngfx::close();
+    gfx::close();
 }

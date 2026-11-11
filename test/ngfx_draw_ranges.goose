@@ -59,7 +59,7 @@ fn main() {
     ngfx::end_pass();
     print("both quads from frame memory: ", white());
 
-    ngfx::frame();
+    ngfx::present();
     let root2 = ngfx::root(Quads { corners: ngfx::address(corner_buffer),
                                    color: float4 { 1.0, 1.0, 1.0, 1.0 } });
     ngfx::begin_screen(float4 { 0.0, 0.0, 0.0, 1.0 });

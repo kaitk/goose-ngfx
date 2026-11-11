@@ -3,7 +3,7 @@
 import ngfx from "../";
 
 thread_fn render() {
-    ngfx::frame();
+    ngfx::present();
 }
 
 fn main() {

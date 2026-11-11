@@ -1,6 +1,17 @@
 // `ngfx` (docs/api.md), graphics on NoGraphicsAPI
-// (third_party/NoGraphicsAPI): Goose gfx's window, input, time, screen,
-// textures and read-back, with NoGraphicsAPI's way of drawing. The
+// (third_party/NoGraphicsAPI): Goose gfx's screen, textures and read-back,
+// with NoGraphicsAPI's way of drawing, into a native window the program gives
+// it. The window, input, events and time are the program's, usually Goose
+// gfx's opened WINDOW_ONLY:
+//
+//   gfx::open("title", w, h, gfx::WINDOW_ONLY);   // a window, no GPU device
+//   let size = gfx::screen_size();
+//   ngfx::open(gfx::native_window(), size.x, size.y, 0);
+//   while gfx::frame() {                          // events; waits when idle
+//       ngfx::resize(gfx::screen_size());
+//       ...draw...
+//       gfx::presented(ngfx::present(gfx::needs_present()));
+//   } The
 // functions are C, the layer in native/, declared here as extern fns against
 // the list in native/ngfx_api.h; scripts/api_check.py checks the two agree.
 // docs/design.md says why it is shaped as it is.
@@ -58,7 +69,7 @@
 // Errors: a call that can fail for reasons outside the program returns
 // false or a zero handle, and error() says why. A call the program should
 // not have made is reported as it happens and aborts the program at the
-// next frame(), check() or read back.
+// next present(), check() or read back.
 
 namespace ngfx;
 
@@ -69,36 +80,7 @@ import math;
 // --- constants: NGFX_CONSTANTS in native/ngfx_api.h -----------------------
 
 // open() and open_headless() flags.
-let WINDOW_RESIZABLE: i32 = 1;
-let WINDOW_HIDDEN: i32 = 2;
-let WINDOW_FULLSCREEN: i32 = 4;
-// Draws on demand: a frame() after a frame that drew nothing into the screen
-// presents nothing and waits for an event (up to a second) instead of
-// returning at once, so an idle program uses no GPU and next to no CPU.
-// Any SDL event ends the wait, a timer's own too.
-let WINDOW_ON_DEMAND: i32 = 64;
-
-// System cursor shapes.
-let CURSOR_DEFAULT: i32 = 0;
-let CURSOR_TEXT: i32 = 1;
-let CURSOR_WAIT: i32 = 2;
-let CURSOR_CROSSHAIR: i32 = 3;
-let CURSOR_PROGRESS: i32 = 4;
-let CURSOR_NWSE_RESIZE: i32 = 5;
-let CURSOR_NESW_RESIZE: i32 = 6;
-let CURSOR_EW_RESIZE: i32 = 7;
-let CURSOR_NS_RESIZE: i32 = 8;
-let CURSOR_MOVE: i32 = 9;
-let CURSOR_NOT_ALLOWED: i32 = 10;
-let CURSOR_POINTER: i32 = 11;
-let CURSOR_NW_RESIZE: i32 = 12;
-let CURSOR_N_RESIZE: i32 = 13;
-let CURSOR_NE_RESIZE: i32 = 14;
-let CURSOR_E_RESIZE: i32 = 15;
-let CURSOR_SE_RESIZE: i32 = 16;
-let CURSOR_S_RESIZE: i32 = 17;
-let CURSOR_SW_RESIZE: i32 = 18;
-let CURSOR_W_RESIZE: i32 = 19;
+let NO_VSYNC: i32 = 16;
 
 // Texture kinds.
 let TEXTURE_2D: i32 = 0;
@@ -202,26 +184,6 @@ let FRAGMENT_READ: i32 = 262208;      // STAGE_FRAGMENT | ACCESS_SHADER_READ
 let TARGET_WRITE: i32 = 10485920;     // a pass's color and depth writes
 let INDEX_READ: i32 = 33554434;       // STAGE_INDEX_INPUT | ACCESS_INDEX_READ
 
-// Mouse buttons.
-let MOUSE_LEFT: i32 = 1;
-let MOUSE_MIDDLE: i32 = 2;
-let MOUSE_RIGHT: i32 = 3;
-let MOUSE_X1: i32 = 4;
-let MOUSE_X2: i32 = 5;
-
-// Input events (Event.kind), and the modifier keys held with a key.
-let EVENT_KEY: i32 = 1;
-let EVENT_TEXT: i32 = 2;
-let EVENT_MOUSE_MOTION: i32 = 3;
-let EVENT_MOUSE_BUTTON: i32 = 4;
-let EVENT_MOUSE_WHEEL: i32 = 5;
-let EVENT_FOCUS_GAINED: i32 = 6;
-let EVENT_FOCUS_LOST: i32 = 7;
-let MOD_SHIFT: i32 = 1;
-let MOD_CTRL: i32 = 2;
-let MOD_ALT: i32 = 4;
-let MOD_GUI: i32 = 8;
-
 // --- handles and descriptions: the structs of native/ngfx_api.h -------------
 
 // A GPU object, by handle. A released handle is an error to use, not a
@@ -285,22 +247,6 @@ struct PipelineDesc {
     depth_bias_slope: f32 = 0.0,
 }
 
-// One input event of the last frame. The fields a kind has are the ones
-// that mean something for it.
-struct Event {
-    kind: i32,              // EVENT_*
-    scancode: i32,          // key: where it is on the keyboard (key_name names it)
-    keycode: i32,           // key: what it means in the keyboard's layout: a character, for most
-    mods: i32,              // key: the MOD_* held down with it
-    down: bool,             // key, button: pressed rather than released
-    repeat: bool,           // key: repeated by being held down
-    button: i32,            // button: MOUSE_*
-    clicks: i32,            // button: 1, 2 for a double click, ...
-    codepoint: u32,         // text: one character typed
-    x: f32,                 // motion, button: where the pointer is, in pixels; wheel: how far
-    y: f32,
-}
-
 struct PassDesc {
     color: Texture[4] = [Texture { 0 }; 4],     // targets, up to the first zero handle
     depth: Texture = Texture { 0 },
@@ -312,18 +258,18 @@ struct PassDesc {
     depth_value: f32 = 1.0,
 }
 
-// --- device, window and frames -----------------------------------------------
+// --- device and frames ------------------------------------------------------
 
 // Whether the ngfx layer is linked in: true wherever a program using it
 // links, which is only as an executable built from the generated C.
 extern fn available() -> bool = "ngfx_available";
 
-// A window of width x height in the display's own coordinates, and the GPU
-// device, or false with error() set. The screen has every pixel of the
-// window, which a high-density display has more of: screen_size() says how
-// many.
-extern fn open(title: const u8[:], width: i64, height: i64, flags: i64) -> bool = "ngfx_open";
-fn open(title: const u8[:], width: i64, height: i64) -> bool { open(title, width, height, 0) }
+// The GPU device, drawing into `window`, a native window's handle as a u64
+// (a CAMetalLayer on Apple's systems, an HWND on Windows; gfx's
+// native_window()), with a screen of width x height pixels, the window's size
+// in pixels; or headless for a window of 0. False with error() set. Flags:
+// NO_VSYNC presents without waiting for the display, for benchmarks.
+extern fn open(window: u64, width: i64, height: i64, flags: i64) -> bool = "ngfx_open";
 // The device alone, drawing into a screen of width x height that no window
 // shows: for tests, and for tools that only compute or render to files.
 extern fn open_headless(width: i64, height: i64, flags: i64) -> bool = "ngfx_open_headless";
@@ -355,31 +301,30 @@ fn driver() -> u8[>..] {
     return name;
 }
 
-// Ends the frame drawn since the last call, showing the screen in the
-// window, and handles the window's events: false once it has been asked to
-// close, or quit() was called. Called at the top of the loop, before the
-// first frame is drawn.
-extern fn frame_raw() -> bool = "ngfx_frame";
-fn frame() -> bool {
-    let running = frame_raw();
+// Ends the frame drawn since open() or the last present(): submits it, and
+// shows the screen in the window if the frame drew into it, or if `force`
+// (the window was exposed: gfx's needs_present()). Then starts the next
+// frame. Whether it showed one: a program on gfx hands that to
+// gfx::presented, so that a frame that showed nothing makes the next
+// gfx::frame() wait for an event. Headless, it shows nothing.
+extern fn present_raw(force: bool) -> bool = "ngfx_present";
+fn present(force: bool) -> bool {
+    let shown = present_raw(force);
     check();
-    running
+    shown
 }
-extern fn quit() = "ngfx_quit";
+fn present() -> bool { present(false) }
+// The window's size in pixels, which the screen follows: call it each frame
+// with gfx::screen_size(), before drawing. Nothing happens when it is the
+// screen's size already.
+extern fn resize(width: i64, height: i64) = "ngfx_resize";
+fn resize(size: int2) { resize(size.x, size.y); }
 // Submits everything drawn so far and waits until the GPU has done it.
 extern fn flush_raw() = "ngfx_flush";
 fn flush() {
     flush_raw();
     check();
 }
-extern fn set_title(title: const u8[:]) = "ngfx_set_title";
-// Borderless fullscreen at the desktop's resolution, or back to a window
-// (false if the window can't change). SDL changes it asynchronously, so
-// fullscreen() can lag a frame or two behind. maximize fills the desktop
-// as a window.
-extern fn set_fullscreen(on: bool) -> bool = "ngfx_set_fullscreen";
-extern fn fullscreen() -> bool = "ngfx_fullscreen";
-extern fn maximize() = "ngfx_maximize";
 
 // The screen: what a frame draws into, an RGBA8 texture of the window's
 // size in pixels, with a depth texture to go with it. Both keep their
@@ -396,176 +341,13 @@ fn screen_size() -> int2 {
     screen_size_into(size);
     size
 }
-// The screen's pixels to each unit of the window's own coordinates: 2 on most
-// high-density displays, 1 elsewhere, including Windows at any scale setting.
-extern fn pixel_density() -> f32 = "ngfx_pixel_density";
-// The pixel density times the system's content scale: what the system draws
-// its own text and controls at, 2 on a high-density Mac, 1.5 on Windows set to
-// 150%. Reported, never applied: the window and the screen stay as they are,
-// and it is up to the program whether to use it, as with ui::set_scale.
-// Both change as the window moves between displays; read them each frame to
-// follow it. 1 headless and with no window open.
-extern fn display_scale() -> f32 = "ngfx_display_scale";
 
-extern fn time() -> f64 = "ngfx_time";               // seconds since open
-extern fn delta_time() -> f64 = "ngfx_delta_time";   // seconds the last frame took
+// How many frames have been shown in the window since open.
 extern fn frame_count() -> i64 = "ngfx_frame_count";
 // How many times ngfx has been opened in this process: handles made before it
 // last changed were released by close().
 extern fn open_count() -> i64 = "ngfx_open_count";
-// --- input -------------------------------------------------------------------
 
-// Keys by SDL's scancode names: "A", "1", "Space", "Return", "Escape",
-// "Left", "Left Shift", "F1". The ones SDL names after a platform's labels
-// go by any of them everywhere: "Left Alt" or "Left Option", "Left GUI",
-// "Left Command" or "Left Windows", "Application". Down now; pressed or
-// released by the events the latest frame() collected. A press and release
-// between frames makes both true, even though down is false. Repeated events
-// that leave the held state unchanged do not count as presses or releases.
-// These queries do not consume input; the next frame() clears the edges.
-// The mouse is in the screen's pixels, which on a high-density display
-// outnumber the window's own coordinates.
-extern fn key_down(name: const u8[:]) -> bool = "ngfx_key_down";
-extern fn key_pressed(name: const u8[:]) -> bool = "ngfx_key_pressed";
-extern fn key_released(name: const u8[:]) -> bool = "ngfx_key_released";
-extern fn mouse_down(button: i64) -> bool = "ngfx_mouse_down";
-extern fn mouse_pressed(button: i64) -> bool = "ngfx_mouse_pressed";
-extern fn mouse_released(button: i64) -> bool = "ngfx_mouse_released";
-extern fn mouse_pos_into(out: float2&) = "ngfx_mouse_pos";
-extern fn mouse_delta_into(out: float2&) = "ngfx_mouse_delta";
-extern fn mouse_wheel() -> f32 = "ngfx_mouse_wheel";
-// Whether the mouse is over the window, or holds a button pressed in it,
-// as SDL's mouse focus says: for a window opened under the mouse, from its
-// first move at the latest. mouse_pos is the mouse's place from open on,
-// and where it left the window while it is outside. Headless, whether the last
-// position injected is on the screen; an injected move decides it in a
-// window too.
-extern fn mouse_in_window() -> bool = "ngfx_mouse_in_window";
-fn mouse_pos() -> float2 {
-    var p = float2_0;
-    mouse_pos_into(p);
-    p
-}
-fn mouse_delta() -> float2 {
-    var d = float2_0;
-    mouse_delta_into(d);
-    d
-}
-
-// Keyboard focus, updated at frame(). Losing focus clears held keys and
-// buttons and motion/wheel deltas, releases relative mode, and restores a
-// visible cursor. Input while unfocused is ignored. Focus changes are also
-// EVENT_FOCUS_GAINED / EVENT_FOCUS_LOST in events(), with no payload fields.
-// Held keys/buttons get released edges and up events before EVENT_FOCUS_LOST.
-// Headless, focus starts true and inject_focus can change it for tests.
-extern fn focused() -> bool = "ngfx_focused";
-
-// First-person mouse look: hide the cursor, confine it to the window, and
-// keep mouse_delta() moving past the window edges. Use deltas, not mouse_pos,
-// for turning. False on failure (including no focus); error() says why.
-// Changing modes discards pending motion and this frame's delta, to avoid
-// a camera jump. Setting the current mode again leaves motion alone.
-// Focus gain does not recapture: call again when the player resumes.
-// Headless, these keep the same state without touching the system mouse.
-extern fn set_mouse_relative(on: bool) -> bool = "ngfx_set_mouse_relative";
-extern fn mouse_relative() -> bool = "ngfx_mouse_relative";
-
-// Select a system cursor shape, for example set_cursor(CURSOR_POINTER).
-// False on failure, with details in error(). Visibility is unchanged.
-// Headless calls validate the shape without changing the desktop cursor.
-// close() restores the default cursor and frees cached shapes.
-extern fn set_cursor(shape: i64) -> bool = "ngfx_set_cursor";
-
-// Visibility outside relative mode; useful when drawing your own cursor.
-// Relative mode always hides it, then restores this preference when disabled.
-// Focus loss resets the preference to visible. Hiding without focus fails.
-// cursor_visible reports the effective visibility within the ngfx window;
-// headless it reports the simulated state. close() restores the system cursor.
-extern fn set_cursor_visible(visible: bool) -> bool = "ngfx_set_cursor_visible";
-extern fn cursor_visible() -> bool = "ngfx_cursor_visible";
-
-// Gamepads, in slots 0..MAX_GAMEPADS-1, filled as pads connect (SDL's
-// standard layout: GAMEPAD_SOUTH is A on Xbox, Cross on PlayStation). A
-// slot frees when its pad disconnects; gamepad_changes counts connects and
-// disconnects, so a program can notice either. Buttons are held state plus
-// the latest frame()'s edges, like keys. Sticks are -1..1, triggers 0..1,
-// with no deadzone applied. gamepad_type is SDL's SDL_GamepadType (0 when
-// the slot is empty). Rumble strengths are 0..1; it returns false when
-// the pad cannot rumble.
-let MAX_GAMEPADS = 4;
-let GAMEPAD_SOUTH = 0;
-let GAMEPAD_EAST = 1;
-let GAMEPAD_WEST = 2;
-let GAMEPAD_NORTH = 3;
-let GAMEPAD_BACK = 4;
-let GAMEPAD_GUIDE = 5;
-let GAMEPAD_START = 6;
-let GAMEPAD_LEFT_STICK = 7;
-let GAMEPAD_RIGHT_STICK = 8;
-let GAMEPAD_LEFT_SHOULDER = 9;
-let GAMEPAD_RIGHT_SHOULDER = 10;
-let GAMEPAD_DPAD_UP = 11;
-let GAMEPAD_DPAD_DOWN = 12;
-let GAMEPAD_DPAD_LEFT = 13;
-let GAMEPAD_DPAD_RIGHT = 14;
-let AXIS_LEFT_X = 0;
-let AXIS_LEFT_Y = 1;
-let AXIS_RIGHT_X = 2;
-let AXIS_RIGHT_Y = 3;
-let AXIS_LEFT_TRIGGER = 4;
-let AXIS_RIGHT_TRIGGER = 5;
-extern fn gamepad_connected(slot: i64) -> bool = "ngfx_gamepad_connected";
-extern fn gamepad_changes() -> i64 = "ngfx_gamepad_changes";
-extern fn gamepad_type(slot: i64) -> i64 = "ngfx_gamepad_type";
-extern fn gamepad_axis(slot: i64, axis: i64) -> f32 = "ngfx_gamepad_axis";
-extern fn gamepad_down(slot: i64, button: i64) -> bool = "ngfx_gamepad_down";
-extern fn gamepad_pressed(slot: i64, button: i64) -> bool = "ngfx_gamepad_pressed";
-extern fn gamepad_released(slot: i64, button: i64) -> bool = "ngfx_gamepad_released";
-extern fn gamepad_rumble(slot: i64, low: f32, high: f32, ms: i64) -> bool = "ngfx_gamepad_rumble";
-
-// Input as if from the keyboard or mouse, seen at the next frame(): what a
-// test drives a program with. The mouse goes to pixel x, y; a button of 0
-// only moves it.
-extern fn inject_key(name: const u8[:], down: bool) -> bool = "ngfx_inject_key";
-extern fn inject_mouse(x: f32, y: f32, button: i64, down: bool) = "ngfx_inject_mouse";
-// Text as if typed: an EVENT_TEXT per character at the next frame().
-extern fn inject_text(text: const u8[:]) -> bool = "ngfx_inject_text";
-// A focus change at the next frame(), in order with other injected input.
-// Does not move operating-system focus; intended for headless tests.
-extern fn inject_focus(focused: bool) -> bool = "ngfx_inject_focus";
-
-// The last frame's input in the order it came, key repeats and typed text
-// included: what text editing needs, where the state above loses what
-// happened between two frames.
-extern fn events_into(out: Event[:]) -> i64 = "ngfx_events";
-fn events() -> Event[>..] {
-    var out: Event[>..] = [];
-    let n = events_into(out);
-    out.resize(n, default<Event>());
-    events_into(out);
-    return out;
-}
-// Typed text comes as EVENT_TEXT only while text input is on: off by
-// default, since on some platforms it shows an on-screen keyboard.
-extern fn text_input(on: bool) = "ngfx_text_input";
-// The scancode of the key of that name, as key_down takes it, 0 for none;
-// and the name the platform has for a key, as a label to show.
-extern fn scancode(name: const u8[:]) -> i64 = "ngfx_scancode";
-extern fn key_name_into(scancode: i64, out: u8[>..]&) = "ngfx_key_name";
-fn key_name(scancode: i64) -> u8[>..] {
-    var name: u8[>..] = [];
-    key_name_into(scancode, name);
-    return name;
-}
-
-// The system clipboard's text; headless, ngfx's own.
-extern fn clipboard_into(out: u8[>..]&) = "ngfx_clipboard";
-fn clipboard() -> u8[>..] {
-    var text: u8[>..] = [];
-    clipboard_into(text);
-    return text;
-}
-extern fn set_clipboard(text: const u8[:]) -> bool = "ngfx_set_clipboard";
 // --- buffers and this frame's data ---------------------------------------------
 
 // A buffer of `size` bytes of GPU memory, holding `data` and zeros after it.

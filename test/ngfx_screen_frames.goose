@@ -40,7 +40,7 @@ fn main() {
         """);
     let fill = ngfx::pipeline(fill_shader, ngfx::PipelineDesc { depth_test: true, depth_write: true });
 
-    ngfx::frame();
+    ngfx::present();
     var d = ngfx::PassDesc { depth: ngfx::screen_depth(), color_value: float4 { 1.0, 0.0, 0.0, 1.0 },
                              depth_value: 0.25 };
     d.color[0] = ngfx::screen();
@@ -48,12 +48,12 @@ fn main() {
     ngfx::end_pass();
     print("cleared red: ", middle());
 
-    ngfx::frame();
+    ngfx::present();
     print("a frame later, with no pass: ", middle());
 
     // Loaded, not cleared: the last frame's depth hides what is behind it,
     // and not what is in front.
-    ngfx::frame();
+    ngfx::present();
     d.clear_color = false;
     d.clear_depth = false;
     ngfx::begin_pass(d);
@@ -68,7 +68,7 @@ fn main() {
     print("and in front of it: ", middle());
 
     for i in 3 {
-        ngfx::frame();
+        ngfx::present();
         // No channel lands halfway between two bytes, as 0.5 does (127.5), which
         // Metal rounds up and NVIDIA's Vulkan down.
         let c = float4 { 0.0, (i + 1) * 0.2, 0.0, 1.0 };
@@ -76,7 +76,7 @@ fn main() {
         ngfx::end_pass();
         print("frame ", i, " cleared: ", middle());
     }
-    ngfx::frame();
+    ngfx::present();
     print("same handles: ", ngfx::screen().id == screen.id && ngfx::screen_depth().id == depth.id);
     ngfx::close();
 }

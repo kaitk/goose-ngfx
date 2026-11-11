@@ -26,6 +26,7 @@ import vec;
 import math;
 import os;
 import ngfx from "../";
+import gfx from "../../goose_gfx";
 import ui;
 import ngfx.ngfx_ui;
 
@@ -52,8 +53,14 @@ fn main() {
         let n, ok = parse_int(argv[2]);
         if ok { frames = n; }
     }
-    guard ngfx::open("Goose: a ui to-do list", 760, 520, ngfx::WINDOW_RESIZABLE) else {
-        write_stderr(str("gfx: ", ngfx::error(), "\n"));
+    // gfx's window, input and events, with no device; ngfx draws into it.
+    guard gfx::open("Goose: a ui to-do list", 760, 520, gfx::WINDOW_RESIZABLE | gfx::WINDOW_ONLY) else {
+        write_stderr(str("gfx: ", gfx::error(), "\n"));
+        return;
+    }
+    let window = gfx::screen_size();
+    guard ngfx::open(gfx::native_window(), window.x, window.y, 0) else {
+        write_stderr(str("ngfx: ", ngfx::error(), "\n"));
         return;
     }
     // A context holds the ui's state; this one draws with the embedded
@@ -84,9 +91,10 @@ fn main() {
     // The ui's pipeline, made for the screen before the first frame.
     ngfx_ui::prepare();
 
-    while ngfx::frame() {
-        if ngfx::key_pressed("Escape") { break; }
-        // The frame's keys, mouse and typing, from ngfx.
+    while gfx::frame() {
+        if gfx::key_pressed("Escape") { break; }
+        ngfx::resize(gfx::screen_size());
+        // The frame's keys, mouse and typing, from gfx.
         ngfx_ui::input(ctx);
         var quit = false;
 
@@ -178,6 +186,7 @@ fn main() {
         ngfx::begin_screen(float4 { backdrop.r, backdrop.g, backdrop.b, 1.0 });
         ngfx::end_pass();
         ngfx_ui::render(ctx);
+        gfx::presented(ngfx::present(gfx::needs_present()));
         // Between frames: the context's font is baked again at the scale.
         if next_scale != ui::scale(ctx) { ui::set_scale(ctx, next_scale); }
         drawn++;
@@ -191,4 +200,5 @@ fn main() {
           " tasks done; saved ngfx_ui_todo.png: ", saved);
     ui::destroy(ctx);
     ngfx::close();
+    gfx::close();
 }

@@ -42,7 +42,7 @@ Don't name this repository's maintainer in docs, Markdown, code, or comments; wr
 ## A library for Goose, not a change to Goose
 
 - Goose changes daily. Fetch it at the start of a session and move the pin when it lags
-  (`docs/development.md`, "Move the pins"). SDL moves only with `goose_gfx`'s.
+  (`docs/development.md`, "Move the pins").
 - Don't edit Goose. When Goose rejects something it should accept,
   miscompiles, or lacks a hook this library needs, reduce it to a minimal case, record
   it in `docs/goose-findings.md`, and work around it here. Tell the maintainer about

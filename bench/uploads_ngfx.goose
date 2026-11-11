@@ -14,6 +14,7 @@ import vec;
 import math;
 import os;
 import ngfx from "../";
+import gfx from "../../goose_gfx";
 
 struct Vertex { pos: float2, uv: float2 }
 struct Root { vertices: u64, texture: u32, sampler: u32 }
@@ -34,7 +35,11 @@ fn main() {
         else { abort("usage: uploads_ngfx --frames F --updates K"); }
         a += 2;
     }
-    guard ngfx::open("ngfx uploads", 1280, 800, ngfx::WINDOW_RESIZABLE) else {
+    guard gfx::open("ngfx uploads", 1280, 800, gfx::WINDOW_RESIZABLE | gfx::WINDOW_ONLY) else {
+        abort(str("gfx: ", gfx::error()));
+    }
+    let window = gfx::screen_size();
+    guard ngfx::open(gfx::native_window(), window.x, window.y, 0) else {
         abort(str("ngfx: ", ngfx::error()));
     }
 
@@ -100,7 +105,8 @@ fn main() {
     load.color[0] = ngfx::screen();
 
     var drawn = 0;
-    while ngfx::frame() {
+    while gfx::frame() {
+        ngfx::resize(gfx::screen_size());
         ngfx::begin_screen(float4 { 0.05, 0.05, 20.0 / 255.0, 1.0 });
         ngfx::end_pass();
         for k in updates {
@@ -111,6 +117,7 @@ fn main() {
             ngfx::draw(root, 6);
             ngfx::end_pass();
         }
+        gfx::presented(ngfx::present(gfx::needs_present()));
         drawn++;
         if drawn == frames { break; }
     }
@@ -122,4 +129,5 @@ fn main() {
     for i in px.len / 4 { if px[i * 4 + 2] != 20 { covered++; } }
     print("drew ", drawn, " frames of ", updates, " updates, covering ", covered, " pixels");
     ngfx::close();
+    gfx::close();
 }

@@ -1,10 +1,10 @@
 // `ngfx_ui` (docs/api.md), Goose's ui module's
-// renderer and input over ngfx, as ui's own render() and input_from_gfx()
-// are over gfx. ui is unchanged: this draws the triangles ui::convert makes
-// and feeds ui the frame's ngfx events. A program shows its ui with
+// renderer over ngfx, as ui's own render() is over gfx, and its input from a
+// gfx opened WINDOW_ONLY. ui is unchanged: this draws the triangles
+// ui::convert makes and feeds ui the frame's gfx events. A program shows its ui with
 //
 //   ngfx_ui::prepare();     // once, before the frame loop (optional)
-//   ngfx_ui::input(ctx);    // after ngfx::frame(), before any window
+//   ngfx_ui::input(ctx);    // after gfx::frame(), before any window
 //   ...windows...
 //   ngfx_ui::render(ctx);   // after the frame's own passes
 //
@@ -16,6 +16,7 @@ import std;
 import vec;
 import math;
 import ngfx;
+import gfx;
 import ui;
 
 // What drawing through ngfx keeps between frames, shared by every context:
@@ -25,12 +26,10 @@ struct Renderer {
     opened: i64,                    // ngfx::open_count() when made; 0: never made
     pipeline: ngfx::Pipeline,
     sampler: ngfx::Sampler,
-    text_input: bool,               // ngfx's text input turned on for input
-    // Scancodes of the keys input maps, by the names ngfx has for them.
-    keys: i64[16],
+    text_input: bool,               // gfx's text input turned on for input
 }
 
-var renderer = Renderer { 0, ngfx::Pipeline { 0 }, ngfx::Sampler { 0 }, false, [0; 16] };
+var renderer = Renderer { 0, ngfx::Pipeline { 0 }, ngfx::Sampler { 0 }, false };
 
 // The root of the draw commands with one texture, as the shader declares
 // it: the frame's vertices, the texture and the sampler, and the target's
@@ -158,77 +157,27 @@ fn render(c: ui::Context, target: ngfx::Texture) { render(c, target, ui::Convert
 // Over the screen.
 fn render(c: ui::Context) { render(c, ngfx::screen(), ui::ConvertConfig {}) }
 
-// The scancode of one of the keys input maps, by the name ngfx has
-// for it.
-fn ngfx_key(i: i64) -> i64 {
-    let names: const u8[:][16] = ["Left Shift", "Right Shift", "Left Ctrl", "Right Ctrl", "Delete",
-                                  "Return", "Keypad Enter", "Tab", "Backspace", "Home", "End",
-                                  "PageDown", "PageUp", "Up", "Down", "Escape"];
-    if renderer.keys[i] == 0 { renderer.keys[i] = ngfx::scancode(names[i]); }
-    renderer.keys[i]
-}
-
-// Nuklear's keys for an ngfx key event: editing keys by name, shortcuts by
-// the character they type, with Ctrl (or the Command key).
-fn input_key_event(c: ui::Context, e: ngfx::Event) {
-    let cmd = (e.mods & (ngfx::MOD_CTRL | ngfx::MOD_GUI)) != 0;
-    let shift = (e.mods & ngfx::MOD_SHIFT) != 0;
-    let sc = e.scancode as i64;
-    if sc == ngfx_key(0) || sc == ngfx_key(1) { ui::input_key(c, ui::KEY_SHIFT, e.down); }
-    else if sc == ngfx_key(2) || sc == ngfx_key(3) { ui::input_key(c, ui::KEY_CTRL, e.down); }
-    else if sc == ngfx_key(4) { ui::input_key(c, ui::KEY_DEL, e.down); }
-    else if sc == ngfx_key(5) || sc == ngfx_key(6) { ui::input_key(c, ui::KEY_ENTER, e.down); }
-    else if sc == ngfx_key(7) { ui::input_key(c, ui::KEY_TAB, e.down); }
-    else if sc == ngfx_key(8) { ui::input_key(c, ui::KEY_BACKSPACE, e.down); }
-    else if sc == ngfx_key(9) {
-        ui::input_key(c, ui::KEY_TEXT_START, e.down);
-        ui::input_key(c, ui::KEY_SCROLL_START, e.down);
-    } else if sc == ngfx_key(10) {
-        ui::input_key(c, ui::KEY_TEXT_END, e.down);
-        ui::input_key(c, ui::KEY_SCROLL_END, e.down);
-    } else if sc == ngfx_key(11) { ui::input_key(c, ui::KEY_SCROLL_DOWN, e.down); }
-    else if sc == ngfx_key(12) { ui::input_key(c, ui::KEY_SCROLL_UP, e.down); }
-    else if sc == ngfx_key(13) { ui::input_key(c, ui::KEY_UP, e.down); }
-    else if sc == ngfx_key(14) { ui::input_key(c, ui::KEY_DOWN, e.down); }
-    else if sc == ngfx_key(15) { ui::input_key(c, ui::KEY_TEXT_RESET_MODE, e.down); }
-    else if sc == ngfx::scancode("Left") {
-        ui::input_key(c, if cmd { ui::KEY_TEXT_WORD_LEFT } else { ui::KEY_LEFT }, e.down);
-    } else if sc == ngfx::scancode("Right") {
-        ui::input_key(c, if cmd { ui::KEY_TEXT_WORD_RIGHT } else { ui::KEY_RIGHT }, e.down);
-    } else if e.keycode == 'a' { ui::input_key(c, ui::KEY_TEXT_SELECT_ALL, e.down && cmd); }
-    else if e.keycode == 'z' {
-        ui::input_key(c, if shift { ui::KEY_TEXT_REDO } else { ui::KEY_TEXT_UNDO }, e.down && cmd);
-    } else if e.keycode == 'y' { ui::input_key(c, ui::KEY_TEXT_REDO, e.down && cmd); }
-    else if e.keycode == 'c' { ui::input_key(c, ui::KEY_COPY, e.down && cmd); }
-    else if e.keycode == 'x' { ui::input_key(c, ui::KEY_CUT, e.down && cmd); }
-    else if e.keycode == 'v' {
-        // What is pasted is the system clipboard's when the keys go down.
-        if e.down && cmd { ui::set_clipboard(c, ngfx::clipboard()); }
-        ui::input_key(c, ui::KEY_PASTE, e.down && cmd);
-    } else {
-        // Nuklear has no use for the other keys: their text comes as text.
-    }
-}
-
-// Nuklear's input for a frame from ngfx's: the last frame's events in order
-// (keys, typed text, the mouse), its duration, and the clipboard both ways.
-// Call it once a frame, after ngfx::frame() and before any window.
+// Nuklear's input for a frame from gfx's, the program's platform: the last
+// frame's events in order (keys, typed text, the mouse), its duration, and the
+// clipboard both ways. ui::input_from_gfx does the same and also makes gfx's
+// renderer, which a gfx opened WINDOW_ONLY has no device for. Call it once a
+// frame, after gfx::frame() and before any window.
 fn input(c: ui::Context) {
     if renderer.opened != ngfx::open_count() { make_renderer(); }
     if !renderer.text_input {
-        ngfx::text_input(true);
+        gfx::text_input(true);
         renderer.text_input = true;
     }
     // What a text edit copied last frame goes to the system clipboard.
     let text, copied_some = ui::copied(c);
-    if copied_some { ngfx::set_clipboard(text); }
+    if copied_some { gfx::set_clipboard(text); }
     ui::input_begin(c);
-    for e in ngfx::events() {
+    for e in gfx::events() {
         let x = floor(e.x) as! i64;
         let y = floor(e.y) as! i64;
-        if e.kind == ngfx::EVENT_MOUSE_MOTION {
+        if e.kind == gfx::EVENT_MOUSE_MOTION {
             ui::input_motion(c, x, y);
-        } else if e.kind == ngfx::EVENT_MOUSE_BUTTON {
+        } else if e.kind == gfx::EVENT_MOUSE_BUTTON {
             let b = match e.button {
                 1 => ui::BUTTON_LEFT,
                 2 => ui::BUTTON_MIDDLE,
@@ -239,14 +188,14 @@ fn input(c: ui::Context) {
             };
             if b == ui::BUTTON_LEFT && e.clicks > 1 { ui::input_button(c, ui::BUTTON_DOUBLE, x, y, e.down); }
             if b >= 0 { ui::input_button(c, b, x, y, e.down); }
-        } else if e.kind == ngfx::EVENT_MOUSE_WHEEL {
+        } else if e.kind == gfx::EVENT_MOUSE_WHEEL {
             ui::input_scroll(c, float2 { e.x, e.y });
-        } else if e.kind == ngfx::EVENT_TEXT {
+        } else if e.kind == gfx::EVENT_TEXT {
             ui::input_unicode(c, e.codepoint);
-        } else if e.kind == ngfx::EVENT_KEY {
-            input_key_event(c, e);
+        } else if e.kind == gfx::EVENT_KEY {
+            ui::input_gfx_key(c, e);
         }
     }
     ui::input_end(c);
-    ui::set_delta_time(c, ngfx::delta_time() as f32);
+    ui::set_delta_time(c, gfx::delta_time() as f32);
 }

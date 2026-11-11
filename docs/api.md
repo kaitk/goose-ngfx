@@ -1,10 +1,11 @@
 # The ngfx API
 
 `ngfx` is graphics on [NoGraphicsAPI](https://github.com/sebbbi/NoGraphicsAPI), over
-Metal 4 or Vulkan 1.4. It keeps Goose gfx's window, input, time, screen, textures,
-samplers, read-back, and `screenshot` by name and behavior, and draws the way
-NoGraphicsAPI does: no bindings, no vertex formats, and no resource states. Everything
-is in namespace `ngfx`.
+Metal 4 or Vulkan 1.4, into a native window the program gives it. It keeps Goose gfx's
+screen, textures, samplers, read-back, and `screenshot` by name and behavior, and draws
+the way NoGraphicsAPI does: no bindings, no vertex formats, and no resource states.
+Everything is in namespace `ngfx`. The window, input, events, and time are the
+program's: Goose gfx's, opened `WINDOW_ONLY` ([The platform](#the-platform)).
 
 The header of `ngfx.goose` is the reference, `samples/cube.goose` a small complete
 program, and [design.md](design.md) how it works and what it costs.
@@ -54,21 +55,38 @@ with `goose file.goose` or builds with `goose build file.goose`
   region starts on a block; the mip's edge may cut its last ones), never read back, and
   have no generated mips. `format_supported(format, usage)` says whether the device takes
   one: ASTC on Apple silicon and phones, BC on desktop GPUs.
-- **`WINDOW_ON_DEMAND` draws on demand.** With the flag, a `frame()` after a frame that
-  drew nothing into the screen presents nothing and waits for an event, up to a second,
-  so an idle program uses no GPU and next to no CPU. Any SDL event ends the wait, a
-  timer's pushed from another thread too.
+- **`present(force)` ends each frame**, at the bottom of the loop: it submits the frame
+  and shows the screen if the frame drew into it, or if `force` (the window was exposed),
+  and says whether it showed one. Handed to gfx's `presented`, a frame that showed
+  nothing makes the next `gfx::frame()` wait for an event, so an idle program uses no GPU
+  and next to no CPU: drawing on demand is skipping the passes when nothing changed.
 - **Main thread only**, as gfx: a `thread_fn` that reaches ngfx is a compile error, from
   `main_thread_only` in `ngfx.build`.
 
 ## The platform
 
-The window, input, and time are gfx's, at `aardappel/goose_gfx` `737d91a`, under the
-same names: `open`, `frame`, keys, the mouse, touch, events, typed text, the clipboard,
-`set_fullscreen` and `maximize`, `pixel_density` and `display_scale` (the system's
-scale, reported and never applied), `set_cursor` with the `CURSOR_*` shapes, and
-gamepads in `MAX_GAMEPADS` slots (`gamepad_down`, `gamepad_axis`, `gamepad_rumble`, and
-the rest). The header of `ngfx.goose` gives each one's contract.
+ngfx has none. `open(window, width, height, flags)` takes a native window's handle as a
+`u64`: a `CAMetalLayer` on Apple's systems, an `HWND` on Windows, or 0 for headless.
+Goose gfx opened with `WINDOW_ONLY` gives one (`native_window()`), and keeps its window,
+keys, the mouse, events, typed text, the clipboard, fullscreen, pixel density and display
+scale, cursors, gamepads, and time, under the names gfx programs know:
+
+```goose
+guard gfx::open("title", w, h, gfx::WINDOW_RESIZABLE | gfx::WINDOW_ONLY) else { ... }
+let size = gfx::screen_size();
+guard ngfx::open(gfx::native_window(), size.x, size.y, 0) else { ... }
+while gfx::frame() {                              // events; waits when idle
+    ngfx::resize(gfx::screen_size());             // the screen follows the window
+    ...
+    gfx::presented(ngfx::present(gfx::needs_present()));
+}
+ngfx::close();
+gfx::close();
+```
+
+`WINDOW_ONLY` is in `kaitk/goose_gfx`'s `ngfx` branch, proposed to Goose's gfx. Any other
+source of a native window does as well. The flag `NO_VSYNC` presents without waiting
+for the display, for benchmarks.
 
 ## Shaders
 
@@ -103,7 +121,7 @@ let c = ngfx::slang_file("shaders/world.slang");
 
 `import ngfx.ngfx_ui;` draws Goose's
 [`ui`](https://github.com/aardappel/goose_gfx/blob/v1/docs/ui.md) through ngfx:
-`ngfx_ui::input(c)` after `ngfx::frame()`, and `ngfx_ui::render(c)` or
+`ngfx_ui::input(c)` after `gfx::frame()` (gfx's events), and `ngfx_ui::render(c)` or
 `ngfx_ui::render(c, target)`, as `ui`'s gfx functions do. `ngfx_ui::prepare()`, once
 before the frame loop, makes its pipeline for the screen then rather than in the first
 frame. `samples/ui_todo.goose` uses

@@ -40,6 +40,7 @@ import vec;
 import os;
 import binary;
 import ngfx from "../";
+import gfx from "../../goose_gfx";
 import audio;
 
 // --- the WAD directory and little-endian values ------------------------------
@@ -1454,7 +1455,11 @@ fn main() {
     load_map();
     reset_game();
 
-    require(ngfx::open("Goose: Mini Doom / Freedoom E1M1", 960, 600, ngfx::WINDOW_RESIZABLE), ngfx::error());
+    // gfx's window, input and events, with no device; ngfx draws into it.
+    require(gfx::open("Goose: Mini Doom / Freedoom E1M1", 960, 600, gfx::WINDOW_RESIZABLE | gfx::WINDOW_ONLY),
+            gfx::error());
+    let window = gfx::screen_size();
+    require(ngfx::open(gfx::native_window(), window.x, window.y, 0), ngfx::error());
     load_sounds(quiet || frames > 0);
     let atlas = ngfx::texture2d(ATLAS_W, ATLAS_H);
     require(atlas.id != 0 && ngfx::update_texture(atlas, atlas_pixels), ngfx::error());
@@ -1466,65 +1471,66 @@ fn main() {
     require(sampler.id != 0 && world_pipeline.id != 0 && hud_pipeline.id != 0, ngfx::error());
     // Made for the screen now, rather than at the first frame's draws.
     require(ngfx::prepare_screen(world_pipeline) && ngfx::prepare_screen(hud_pipeline), ngfx::error());
-    var paused = !ngfx::focused();
+    var paused = !gfx::focused();
     var help = false;
     var map = false;
     var wait_for_fire = false;
     var fire_pending = false;
     var accumulator: f32 = 0.0;
     var drawn = 0;
-    if !paused && frames < 0 && !ngfx::set_mouse_relative(true) { say("MOUSE CAPTURE FAILED - LEFT/RIGHT TURNS"); }
-    while ngfx::frame() {
+    if !paused && frames < 0 && !gfx::set_mouse_relative(true) { say("MOUSE CAPTURE FAILED - LEFT/RIGHT TURNS"); }
+    while gfx::frame() {
+        ngfx::resize(gfx::screen_size());
         let size = ngfx::screen_size();
         if size.x <= 0 || size.y <= 0 { continue; }
         let was_playing = !paused && player.health > 0 && !won;
-        var lost_focus = !ngfx::focused();
-        for event in ngfx::events() { if event.kind == ngfx::EVENT_FOCUS_LOST { lost_focus = true; } }
+        var lost_focus = !gfx::focused();
+        for event in gfx::events() { if event.kind == gfx::EVENT_FOCUS_LOST { lost_focus = true; } }
         if lost_focus { paused = true; }
         else {
-            if ngfx::key_pressed("Escape") { paused = !paused; }
-            else if paused && ngfx::mouse_pressed(ngfx::MOUSE_LEFT) { paused = false; }
-            if ngfx::key_pressed("H") { help = !help; }
-            if ngfx::key_pressed("Tab") { map = !map; }
-            if ngfx::key_pressed("R") && (player.health <= 0 || won) { reset_game(); paused = false; }
+            if gfx::key_pressed("Escape") { paused = !paused; }
+            else if paused && gfx::mouse_pressed(gfx::MOUSE_LEFT) { paused = false; }
+            if gfx::key_pressed("H") { help = !help; }
+            if gfx::key_pressed("Tab") { map = !map; }
+            if gfx::key_pressed("R") && (player.health <= 0 || won) { reset_game(); paused = false; }
         }
         let playing = !paused && player.health > 0 && !won;
         if playing != was_playing {
-            ngfx::set_mouse_relative(playing && frames < 0);
+            gfx::set_mouse_relative(playing && frames < 0);
             wait_for_fire = true;
         }
-        let fire_down = ngfx::mouse_down(ngfx::MOUSE_LEFT) || ngfx::key_down("Left Ctrl") || ngfx::key_down("Right Ctrl");
+        let fire_down = gfx::mouse_down(gfx::MOUSE_LEFT) || gfx::key_down("Left Ctrl") || gfx::key_down("Right Ctrl");
         if !fire_down { wait_for_fire = false; }
-        let dt: f32 = if frames > 0 { STEP } else { min(ngfx::delta_time(), 0.1) as f32 };
+        let dt: f32 = if frames > 0 { STEP } else { min(gfx::delta_time(), 0.1) as f32 };
         if playing && was_playing {
             // Keep a short press until a simulation tick consumes it; a
             // press and release can both arrive between rendered frames.
-            if !wait_for_fire && (ngfx::mouse_pressed(ngfx::MOUSE_LEFT) ||
-                ngfx::key_pressed("Left Ctrl") || ngfx::key_pressed("Right Ctrl")) { fire_pending = true; }
-            if ngfx::mouse_relative() { player.yaw -= ngfx::mouse_delta().x * 0.003; }
-            if ngfx::key_down("Left") { player.yaw += dt * 2.2; }
-            if ngfx::key_down("Right") { player.yaw -= dt * 2.2; }
+            if !wait_for_fire && (gfx::mouse_pressed(gfx::MOUSE_LEFT) ||
+                gfx::key_pressed("Left Ctrl") || gfx::key_pressed("Right Ctrl")) { fire_pending = true; }
+            if gfx::mouse_relative() { player.yaw -= gfx::mouse_delta().x * 0.003; }
+            if gfx::key_down("Left") { player.yaw += dt * 2.2; }
+            if gfx::key_down("Right") { player.yaw -= dt * 2.2; }
             player.yaw = (player.yaw + TAU) % TAU;
-            if ngfx::key_pressed("1") { player.weapon = 1; }
-            if ngfx::key_pressed("2") { player.weapon = 2; }
-            if ngfx::key_pressed("3") && player.shotgun { player.weapon = 3; }
-            if ngfx::key_pressed("4") && player.chaingun { player.weapon = 4; }
-            if ngfx::key_pressed("E") || ngfx::key_pressed("Space") { use(); }
+            if gfx::key_pressed("1") { player.weapon = 1; }
+            if gfx::key_pressed("2") { player.weapon = 2; }
+            if gfx::key_pressed("3") && player.shotgun { player.weapon = 3; }
+            if gfx::key_pressed("4") && player.chaingun { player.weapon = 4; }
+            if gfx::key_pressed("E") || gfx::key_pressed("Space") { use(); }
             var direction = float2_0;
-            if ngfx::key_down("W") || ngfx::key_down("Up") { direction.y += 1.0; }
-            if ngfx::key_down("S") || ngfx::key_down("Down") { direction.y -= 1.0; }
-            if ngfx::key_down("D") { direction.x += 1.0; }
-            if ngfx::key_down("A") { direction.x -= 1.0; }
+            if gfx::key_down("W") || gfx::key_down("Up") { direction.y += 1.0; }
+            if gfx::key_down("S") || gfx::key_down("Down") { direction.y -= 1.0; }
+            if gfx::key_down("D") { direction.x += 1.0; }
+            if gfx::key_down("A") { direction.x -= 1.0; }
             accumulator += dt;
             while accumulator >= STEP && !won && player.health > 0 {
-                tick(direction, ngfx::key_down("Left Shift") || ngfx::key_down("Right Shift"),
+                tick(direction, gfx::key_down("Left Shift") || gfx::key_down("Right Shift"),
                      (fire_down || fire_pending) && !wait_for_fire);
                 fire_pending = false;
                 accumulator -= STEP;
             }
         } else { accumulator = 0.0; fire_pending = false; }
         // Death/completion can happen inside tick, after input was sampled.
-        if (player.health <= 0 || won) && ngfx::mouse_relative() { ngfx::set_mouse_relative(false); }
+        if (player.health <= 0 || won) && gfx::mouse_relative() { gfx::set_mouse_relative(false); }
 
         // All scratch mesh storage is freed when this frame's scope ends.
         // Rebuilding this small map keeps moving-sector rendering readable.
@@ -1557,9 +1563,10 @@ fn main() {
         ngfx::bind(hud_pipeline);
         ngfx::draw(hud_root, hud.len);
         ngfx::end_pass();
-        if ngfx::key_pressed("F12") {
+        if gfx::key_pressed("F12") {
             say(if ngfx::screenshot("ngfx_mini_doom.png") { "SAVED NGFX_MINI_DOOM.PNG" } else { "SCREENSHOT FAILED" });
         }
+        gfx::presented(ngfx::present(gfx::needs_present()));
         drawn++;
         if drawn == frames { break; }
     }
@@ -1570,4 +1577,5 @@ fn main() {
     }
     if sound_ready { audio::close(); }
     ngfx::close();
+    gfx::close();
 }

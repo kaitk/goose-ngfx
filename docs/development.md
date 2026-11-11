@@ -46,7 +46,7 @@ Linux, tested in WSL 2 on Ubuntu 26.04 (2026-10-11), headless only:
 | Python | `python3` | 3.14 |
 
 The distribution's Vulkan headers may be older than 1.4.357 (Ubuntu 26.04's are
-1.4.341), hence the SDK. ngfx's own SDL needs no X11: it never opens a window on Linux.
+1.4.341), hence the SDK. ngfx itself needs no X11: it never opens a window.
 Goose's gfx package, which `ui` and `audio` come from, builds nothing without X11 or
 Wayland headers, and SDL then wants all of the X11 ones above, not only the two gfx's
 message names. Without them, a program importing `ui` or `audio` fails to link
@@ -70,8 +70,9 @@ doesn't find Vulkan.
 git clone --recursive https://github.com/kaitk/goose-ngfx.git
 ```
 
-or `git submodule update --init` in an existing clone. The submodules are NoGraphicsAPI
-and SDL; Goose fetches them too when it fetches the package from git.
+or `git submodule update --init` in an existing clone. The submodule is NoGraphicsAPI,
+from the `kaitk/NoGraphicsAPI` fork's `ngfx` branch; Goose fetches it too when it
+fetches the package from git.
 
 The Goose compiler isn't a submodule: a package fetched with its submodules would carry a
 copy. Build it from a clone of `aardappel/goose` at the pin, as its README says, and
@@ -108,13 +109,11 @@ through a wrapper project of the compiler's, with Ninja where the compiler finds
 the platform's generator otherwise (Unix Makefiles on a Mac without Ninja), and builds,
 under `~/.goose/build/pkg/`:
 
-1. SDL3, from `third_party/SDL`, static, configured as Goose's gfx package configures
-   its own.
-2. NoGraphicsAPI and its utility libraries, from `third_party/NoGraphicsAPI`.
-3. The layer's own two shaders (`native/*.slang`), into byte arrays: SPIR-V, with
+1. NoGraphicsAPI and its utility libraries, from `third_party/NoGraphicsAPI`.
+2. The layer's own two shaders (`native/*.slang`), into byte arrays: SPIR-V, with
    slangc and `spirv-val`, or on macOS a metallib, with slangc and Xcode's `metal` and
    `metallib`.
-4. The `ngfx` static library, from `native/`, and, for `goose run`, a shared library of
+3. The `ngfx` static library, from `native/`, and, for `goose run`, a shared library of
    it the JIT loads.
 
 The first build takes a few minutes; fetching and building it from git took 85 s on
@@ -266,17 +265,13 @@ Then rebuild the compiler, run `python scripts/run_tests.py`, and update the pin
   ([goose-findings.md](goose-findings.md)).
 - The C that `extern fn` declarations cross as. `api_check.py` compares the two sides of
   ngfx's boundary, but not Goose's own layout rules; a change to those breaks a test.
-- Goose's gfx or ui API, which `ngfx_platform.c` and `ngfx_ui.goose` copy. They live in
-  `aardappel/goose_gfx` now, at the ref in Goose's `src/blessed.txt`. Port the change if
-  it's a fix.
+- Goose's gfx or ui API, which the samples, the benchmarks, and `ngfx_ui.goose` use for
+  the window and input. They live in `aardappel/goose_gfx`, at the ref in Goose's
+  `src/blessed.txt`; the samples take gfx from `kaitk/goose_gfx`'s `ngfx` branch, that
+  ref with `WINDOW_ONLY`, until Goose's gfx has it.
 - The samples, which are ports of Goose's. When Goose's originals change, bring the ports
   in line and check the screenshots still match.
 
-SDL moves with `goose_gfx`, never alone: `third_party/SDL` must be the commit
-`goose_gfx` pins at the ref Goose blesses, and `CMakeLists.txt` must set the same SDL
-options as its `CMakeLists.txt`
-([design.md](design.md#how-it-is-built)). When the blessed
-ref moves, compare both and move SDL in the same commit.
 
 ## Traps
 
@@ -308,6 +303,6 @@ ref moves, compare both and move SDL in the same commit.
 - On the Mac, a GPU restart leaves `gpuEvent-*.ips` in `/Library/Logs/DiagnosticReports/`
   (later moved to `Retired/`), with the restart reason and which GPU slots were busy. In
   zsh, `log` is a builtin: read the system log with `/usr/bin/log show`.
-- A program that opens ngfx holds macOS's `PreventUserIdleDisplaySleep`, even headless,
+- A program that opens gfx holds macOS's `PreventUserIdleDisplaySleep`, even headless,
   because SDL disables the screen saver. A loop of runs keeps the display awake;
   `pmset displaysleepnow` turns it off.
