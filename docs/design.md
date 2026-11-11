@@ -210,10 +210,22 @@ compares with the `extern` declarations in `ngfx.goose`.
 
 ### Memory and submission
 
-- **Memory grows in chunks**, suballocated with NoGraphicsAPIUtility's allocators:
-  buffers and textures from 64 MB chunks made as they fill (one over half a chunk gets a
-  heap of its own, given back with it). The rest is fixed: 16 MB of frame memory per
-  frame in flight (running out is a misuse), 8192 texture and 1024 sampler descriptors. Releases wait in a `DeleteQueue`.
+- **Memory is sized from use, starting small** (2026-11-11), as SDL_GPU's is with the
+  patch Draughts carries for exact large allocations. Buffers and textures are
+  suballocated with NoGraphicsAPIUtility's allocators from 8 MB chunks made as they fill;
+  one over half a chunk gets memory of exactly its size, shared with nothing and given
+  back with it, so a large resource never rounds up to a block or keeps one alive. A
+  frame's memory starts at 256 KB per frame in flight and doubles when a frame outgrows
+  it, the outgrown memory given back once that frame has finished. The upload queue is
+  4 MB; larger uploads pass through it in parts. The screen's depth is made only when a
+  program asks for `screen_depth()`. Fixed: 8192 texture and 1024 sampler descriptors.
+  Releases wait in a `DeleteQueue`. On the M1 Pro, a program that opens ngfx and clears
+  three frames went from 160 MB (138 MB of it graphics: 64 MB chunks committed whole,
+  2 × 16 MB of frame memory, a 32 MB upload queue) to 40 MB. Draughts at rest in a
+  1280 × 800 window: its 2D game from 309 MB to 167 MB, its 3D game from 614 MB to
+  419 MB, against 115 MB and 355 MB on its gfx build. Most of the rest is the screen,
+  an offscreen texture and its spare (16 MB each at 2560 × 1600) copied into the
+  drawable, which gfx draws into directly.
 - **All GPU work runs on queue zero.** No program in the acceptance set needs async
   compute, and on M1 NoGraphicsAPI leaves open whether its queues are independent
   engines, so no gain could be measured. Adding it later extends the surface without

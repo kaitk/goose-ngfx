@@ -75,52 +75,60 @@ void print_stamps()
     fprintf(stderr, "ngfx_bench slang %.1f %d\n", seconds * 1000.0, modules);
 }
 
-// Clears the screen to black and far, as gfx's starts.
+// Clears the screen to black, and its depth, if it has one, to far, as gfx's
+// starts.
 void clear_screen()
 {
     TextureSlot* color = texture_slot(g.screen);
-    TextureSlot* depth = texture_slot(g.screen_depth);
-    if (!color || !depth) return;
+    TextureSlot* depth = g.screen_depth.id ? texture_slot(g.screen_depth) : nullptr;
+    if (!color) return;
     CommandBuffer* commands = frame_commands();
     frame_boundary_barrier(commands);
     const ColorAttachment colors[] = {{.render_view = render_view(color, 0, 0), .load = LoadOp::clear,
                                        .clear = {.x = 0.0f, .y = 0.0f, .z = 0.0f, .w = 1.0f}}};
-    begin_render_pass(commands, {.colors = colors,
-                                 .depth = {.render_view = render_view(depth, 0, 0), .load = LoadOp::clear, .clear = 1.0f}});
+    RenderingDesc pass{.colors = colors};
+    if (depth) pass.depth = {.render_view = render_view(depth, 0, 0), .load = LoadOp::clear, .clear = 1.0f};
+    begin_render_pass(commands, pass);
     end_render_pass(commands);
 }
 
-bool create_screen(int w, int h)
+// The screen's color (0) or depth (1) textures at w x h, one per frame in
+// flight. The handle stays; the table and the spares get new textures, the
+// old ones released once the frames using them finish.
+bool create_screen_part(int i, int w, int h)
 {
-    if (w < 1) w = 1;
-    if (h < 1) h = 1;
     const ngfx_texture_desc color{.kind = NGFX_TEXTURE_2D, .format = NGFX_RGBA8,
                                      .usage = NGFX_SAMPLED | NGFX_COLOR_TARGET, .width = w, .height = h,
                                      .depth = 1, .mips = 1};
     const ngfx_texture_desc depth{.kind = NGFX_TEXTURE_2D, .format = NGFX_DEPTH,
                                      .usage = NGFX_DEPTH_TARGET, .width = w, .height = h, .depth = 1, .mips = 1};
-    // The handles stay; the table and the spares get new textures, the old
-    // ones released once the frames using them finish.
-    const ngfx_texture_desc* descs[] = {&color, &depth};
-    ngfx_texture* handles[] = {&g.screen, &g.screen_depth};
-    for (int i = 0; i < 2; ++i)
+    const ngfx_texture_desc& desc = i ? depth : color;
+    ngfx_texture& handle = i ? g.screen_depth : g.screen;
+    for (uint32 k = 0; k < frames_in_flight; ++k)
     {
-        for (uint32 k = 0; k < frames_in_flight; ++k)
+        uint32 id = 0;
+        TextureSlot* fresh = nullptr;
+        if (!create_texture(desc, &id, &fresh)) return false;
+        TextureSlot* old = k ? &g.screen_spares[i][k - 1] : g.textures.find(handle.id);
+        if (!k && !old)
         {
-            uint32 id = 0;
-            TextureSlot* fresh = nullptr;
-            if (!create_texture(*descs[i], &id, &fresh)) return false;
-            TextureSlot* old = k ? &g.screen_spares[i][k - 1] : g.textures.find(handles[i]->id);
-            if (!k && !old)
-            {
-                handles[i]->id = id;
-                continue;
-            }
-            if (old->placed.texture) release_texture_later(*old);
-            *old = *fresh;
-            g.textures.remove(id);
+            handle.id = id;
+            continue;
         }
+        if (old->placed.texture) release_texture_later(*old);
+        *old = *fresh;
+        g.textures.remove(id);
     }
+    return true;
+}
+
+// The screen at w x h, with its depth only once a program has asked for it
+// (screen_depth()): most draw the screen without one.
+bool create_screen(int w, int h)
+{
+    if (w < 1) w = 1;
+    if (h < 1) h = 1;
+    if (!create_screen_part(0, w, h) || (g.screen_depth.id && !create_screen_part(1, w, h))) return false;
     g.width = w;
     g.height = h;
     clear_screen();
@@ -142,7 +150,7 @@ void copy_screen(const SwapchainFrame& frame)
     g.bound_pso = g.copy_pso;
     const bool same = frame.extent.x == uint32(g.width) && frame.extent.y == uint32(g.height);
     const uint32 root_values[4] = {screen->sampled, g.copy_samplers[same ? 0 : 1], 0, 0};
-    const GpuCpuRange<byte> root = g.frame_data[g.slot]->allocate(sizeof root_values);
+    const GpuCpuRange<byte> root = frame_allocate(sizeof root_values);
     memcpy(root.cpu, root_values, sizeof root_values);
     draw(g.commands, root.gpu, 3);
     end_render_pass(g.commands);
@@ -151,6 +159,37 @@ void copy_screen(const SwapchainFrame& frame)
 } // namespace
 
 CommandBuffer* frame_commands() { return g.commands; }
+
+namespace {
+struct OldFrameMemory
+{
+    GpuHeap heap;
+    BumpAllocator* data;
+};
+} // namespace
+
+GpuCpuRange<byte> frame_allocate(uint64 size)
+{
+    const uint32 i = g.slot;
+    GpuCpuRange<byte> r = g.frame_data[i]->allocate(size);
+    if (r.size) return r;
+    // Outgrown: twice the memory, or room for this, whichever is more. What
+    // the frame already holds stays where it is, given back once the frame
+    // has finished on the GPU, and the frames after start in the new memory.
+    uint64 grown = g.frame_heaps[i].range.size * 2;
+    while (grown < size + BumpAllocator::alignment) grown *= 2;
+    const GpuHeap heap = create_gpu_heap(g.device, grown, MemoryType::cpu_visible);
+    if (!heap.owner) return {};
+    defer_release([](void* p) {
+        OldFrameMemory* old = static_cast<OldFrameMemory*>(p);
+        delete old->data;
+        destroy_gpu_heap(old->heap);
+        delete old;
+    }, new OldFrameMemory{g.frame_heaps[i], g.frame_data[i]});
+    g.frame_heaps[i] = heap;
+    g.frame_data[i] = new BumpAllocator(heap.range);
+    return g.frame_data[i]->allocate(size);
+}
 
 void renew_screen(uint32 id)
 {
@@ -319,10 +358,9 @@ bool ngfx_gpu_open(void* layer, int w, int h)
     }
     g.device = init.device;
     g.timeline.semaphore = create_timeline_semaphore(g.device);
-    g.frame_heap = create_gpu_heap(g.device, frame_memory_size * frames_in_flight, MemoryType::cpu_visible);
     g.texture_descriptors = create_texture_descriptor_heap(g.device, texture_descriptors);
     g.sampler_descriptors = create_sampler_descriptor_heap(g.device, sampler_descriptors);
-    if (!g.timeline.semaphore || !g.frame_heap.owner || !g.texture_descriptors || !g.sampler_descriptors)
+    if (!g.timeline.semaphore || !g.texture_descriptors || !g.sampler_descriptors)
     {
         if (!ngfx_error_text()[0]) ngfx_fail("creating the device's resources");
         return false;
@@ -331,9 +369,9 @@ bool ngfx_gpu_open(void* layer, int w, int h)
     {
         g.pools[i] = create_command_pool(g.device);
         if (!g.pools[i]) return ngfx_fail("creating a command pool");
-        GpuCpuRange<byte> part{.cpu = g.frame_heap.range.cpu + i * frame_memory_size,
-                               .gpu = g.frame_heap.range.gpu + i * frame_memory_size, .size = frame_memory_size};
-        g.frame_data[i] = new BumpAllocator(part);
+        g.frame_heaps[i] = create_gpu_heap(g.device, frame_memory_start, MemoryType::cpu_visible);
+        if (!g.frame_heaps[i].owner) return ngfx_fail("creating frame memory");
+        g.frame_data[i] = new BumpAllocator(g.frame_heaps[i].range);
     }
     g.uploads = new UploadQueue(g.device, upload_capacity, 0, upload_batches);
     if (!g.uploads->valid()) return ngfx_fail("creating the upload queue");
@@ -404,7 +442,8 @@ void ngfx_gpu_close(void)
         delete g.frame_data[i];
         destroy_command_pool(g.pools[i]);
     }
-    destroy_gpu_heap(g.frame_heap);
+    for (const GpuHeap& h : g.frame_heaps)
+        if (h.owner) destroy_gpu_heap(h);
     destroy_texture_descriptor_heap(g.texture_descriptors);
     destroy_sampler_descriptor_heap(g.sampler_descriptors);
     destroy_timeline_semaphore(g.timeline.semaphore);
@@ -462,7 +501,8 @@ ngfx_texture ngfx_screen(void)
 
 ngfx_texture ngfx_screen_depth(void)
 {
-    ngfx_need_device("screen_depth");
+    if (!ngfx_need_device("screen_depth")) return g.screen_depth;
+    if (!g.screen_depth.id && create_screen_part(1, g.width, g.height)) clear_screen();
     return g.screen_depth;
 }
 

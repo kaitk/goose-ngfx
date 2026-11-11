@@ -1,7 +1,8 @@
 // Frames with the ngfx module, headless: present() ends a frame and starts the
 // next, showing nothing with no window, forced or not; resize() replaces the
 // screen at the new size, keeping its handle, and leaves it alone at the same
-// size; and the screen draws in the frames after.
+// size; the screen draws in the frames after; and a frame's memory grows
+// past its start within the frame.
 import std;
 import vec;
 import os;
@@ -32,6 +33,15 @@ fn main() {
     ngfx::present();
     let px = ngfx::read_pixels(ngfx::screen());
     print("drawn after the resize: ", px.len / 4, " pixels, first ", px[0], ",", px[1], ",", px[2]);
+    // This frame's memory starts small and grows: 1 MB in parts in one frame.
+    var part: u8[>..] = [];
+    part.resize(300000, 7);
+    var addresses: u64[>..] = [];
+    for i in 4 { addresses.push(ngfx::frame_data(part)); }
+    var distinct = true;
+    for i in addresses.len { distinct = distinct && addresses[i] != 0; }
+    for i in 1..addresses.len { distinct = distinct && addresses[i] != addresses[i - 1]; }
+    print("frame memory grown within a frame: ", distinct);
     for i in 5 { ngfx::present(); }
     print("open count ", ngfx::open_count());
     ngfx::close();

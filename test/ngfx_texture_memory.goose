@@ -7,7 +7,7 @@ import vec;
 import os;
 import ngfx from "../";
 
-let SIDE = 1024;        // 4 MB each in RGBA8: 40 of them fill several 64 MB chunks
+let SIDE = 512;         // 1 MB each in RGBA8: 40 of them fill several 8 MB chunks
 let COUNT = 40;
 
 // A texture of one color: its index in red and green.
@@ -42,7 +42,12 @@ fn main() {
     for i in COUNT { ts.push(filled(i)); }
     var ok = true;
     for i in COUNT { if !holds(ts[i], i) { ok = false; } }
-    print(COUNT, " textures of 4 MB: ", if ok { "each holds its own" } else { "mixed up" });
+    print(COUNT, " textures of 1 MB: ", if ok { "each holds its own" } else { "mixed up" });
+
+    // 1500 x 1100 RGBA8, 6.6 MB: a heap of its own of a size no allocation unit divides.
+    let odd = ngfx::texture2d(1500, 1100);
+    if odd.id != 0 { print("one of 6.6 MB: made"); } else { print("one of 6.6 MB: ", ngfx::error()); }
+    ngfx::release(odd);
 
     // 8192 x 4096 RGBA8, 128 MB: a heap of its own.
     let big = ngfx::texture2d(8192, 4096);

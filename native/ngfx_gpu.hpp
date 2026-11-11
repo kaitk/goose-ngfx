@@ -212,16 +212,22 @@ struct ComputeSlot
 // --- the one state ---------------------------------------------------------------
 
 constexpr uint32 frames_in_flight = 2;
-constexpr uint64 frame_memory_size = 16ull << 20;    // per frame in flight
-constexpr uint64 buffer_chunk_size = 64ull << 20;
+// Memory is sized from use, starting small, as Goose programs are: a frame's
+// memory doubles when a frame outgrows it, and a buffer or texture over half
+// a chunk gets memory of exactly its size, shared with nothing, so a large
+// resource never keeps a large block alive or rounds up to one.
+constexpr uint64 frame_memory_start = 256ull << 10;  // per frame in flight
+constexpr uint64 buffer_chunk_size = 8ull << 20;
 constexpr uint32 buffer_chunk_allocations = 4096;
 // Texture memory grows a chunk at a time, as buffer memory does: a texture
 // over half a chunk gets a heap of its own.
-constexpr uint64 texture_chunk_size = 64ull << 20;
+constexpr uint64 texture_chunk_size = 8ull << 20;
 constexpr uint32 texture_chunk_textures = 1024;
 constexpr uint32 texture_descriptors = 8192;
 constexpr uint32 sampler_descriptors = 1024;
-constexpr uint64 upload_capacity = 32ull << 20;
+// Larger uploads go through it in parts: a buffer's split, a texture's in
+// tiles.
+constexpr uint64 upload_capacity = 4ull << 20;
 // UploadQueue's batches in flight. A frame flushes one at its end and one
 // for each upload that overlaps an earlier one in the batch; past this many,
 // starting another waits on the CPU for the oldest.
@@ -261,7 +267,8 @@ struct State
     CommandPool* pools[frames_in_flight] = {};
     uint64 pool_values[frames_in_flight] = {};   // the latest submission from each pool
     uint32 slot = 0;                // the frame in flight being recorded
-    GpuHeap frame_heap{};
+    // Each frame in flight's memory, which frame_allocate grows.
+    GpuHeap frame_heaps[frames_in_flight] = {};
     BumpAllocator* frame_data[frames_in_flight] = {};
     CommandBuffer* commands = nullptr;
 
@@ -336,6 +343,9 @@ extern State g;
 
 // The frame's command buffer, begun with the descriptor heaps set.
 CommandBuffer* frame_commands();
+// `size` bytes of this frame's CPU-visible memory, the frame's memory grown
+// if it is used up; empty only if growing it failed.
+GpuCpuRange<byte> frame_allocate(uint64 size);
 // Submits the frame's commands so far, after the setup and upload work before
 // them; `present` with submit_and_present. Starts no new command buffer.
 void submit_frame_commands(bool present);

@@ -32,7 +32,7 @@ TextureUsage usage_of(uint32 usage, bool depth)
 
 BufferSlot* buffer_slot(ngfx_buffer b) { return g.buffers.get(b.id); }
 
-// GPU memory for a buffer: a suballocation of a 64 MB chunk, or a heap of its
+// GPU memory for a buffer: a suballocation of a chunk, or a heap of its
 // own for a larger one.
 bool allocate_buffer(BufferSlot& s, uint64 size)
 {
@@ -167,7 +167,12 @@ PlacedTexture place_texture(CommandBuffer* setup, const TextureDesc& desc, int32
             }
         }
     }
-    const uint64 align = need.align ? need.align : 1;
+    // The allocator places textures in units of the device's texture heap
+    // alignment, so a heap of its own rounds up to that, as well as to the
+    // texture's.
+    const uint64 heap_align = get_device_caps(g.device).texture_heap_alignment;
+    uint64 align = need.align > heap_align ? need.align : heap_align;
+    if (!align) align = 1;
     const uint64 size = alone ? (need.size + align - 1) / align * align : texture_chunk_size;
     const TextureHeap heap = create_texture_heap(g.device, size);
     if (!heap.owner) return {};
@@ -462,10 +467,10 @@ uint64_t ngfx_frame_data(ngfx_bytes data)
         ngfx_misuse("frame_data: no bytes");
         return 0;
     }
-    const GpuCpuRange<byte> r = g.frame_data[g.slot]->allocate(uint64(data.len));
+    const GpuCpuRange<byte> r = frame_allocate(uint64(data.len));
     if (!r.size)
     {
-        ngfx_misuse("frame_data: this frame's %llu MB of data are used up", (unsigned long long)(frame_memory_size >> 20));
+        ngfx_fail("frame_data: out of memory for %lld bytes", (long long)data.len);
         return 0;
     }
     memcpy(r.cpu, data.data, size_t(data.len));
