@@ -222,19 +222,34 @@ compares with the `extern` declarations in `ngfx.goose`.
 
 - **Memory is sized from use, starting small** (2026-11-11), as SDL_GPU's is with the
   patch Draughts carries for exact large allocations. Buffers and textures are
-  suballocated with NoGraphicsAPIUtility's allocators from 8 MB chunks made as they fill;
-  one over half a chunk gets memory of exactly its size, shared with nothing and given
-  back with it, so a large resource never rounds up to a block or keeps one alive. A
-  frame's memory starts at 256 KB per frame in flight and doubles when a frame outgrows
-  it, the outgrown memory given back once that frame has finished. The upload queue is
-  4 MB; larger uploads pass through it in parts. The screen's depth is made only when a
-  program asks for `screen_depth()`. Fixed: 8192 texture and 1024 sampler descriptors.
-  Releases wait in a `DeleteQueue`. On the M1 Pro, a program that opens ngfx and clears
-  three frames went from 160 MB (138 MB of it graphics: 64 MB chunks committed whole,
-  2 × 16 MB of frame memory, a 32 MB upload queue) to 40 MB. Draughts at rest in a
-  1280 × 800 window: its 2D game from 309 MB to 167 MB, its 3D game from 614 MB to
-  419 MB, against 115 MB and 355 MB on its gfx build; the screen drawn into the
-  window's image (above) took them to 147 MB and 389 MB.
+  suballocated with NoGraphicsAPIUtility's allocators from chunks made as they fill, 2 MB
+  for buffers and 4 MB for textures; one over half a chunk gets memory of exactly its
+  size, shared with nothing and given back with it, so a large resource never rounds up
+  to a block or keeps one alive. A frame's memory starts at 256 KB per frame in flight
+  and doubles when a frame outgrows it, the outgrown memory given back once that frame
+  has finished. The upload queue is 4 MB; larger uploads pass through it in parts. The
+  screen's depth is made only when a program asks for `screen_depth()`. Releases wait in
+  lists that grow as needed, not NoGraphicsAPIUtility's `DeleteQueue`, whose fixed ring
+  of 128-byte callbacks held 9 MB at the 65,536 entries a burst of releases needs.
+  Timestamp storage is reserved only under `GOOSE_NGFX_BENCH`. Fixed, as measured too
+  small to size: 8192 texture and 1024 sampler descriptors (72 KB on Metal).
+- **The first idle frame gives back the driver's memory for recording** (2026-11-12). A
+  Metal 4 command allocator keeps the most memory it was ever recorded into, and
+  resetting it returns none, so the frames that set a program up (textures initialized,
+  photographs uploaded in parts) held their command memory for good: 11 MB of the 20 MB
+  of driver memory Draughts' 2D game held at rest. `present()` of a frame that recorded
+  nothing, after frames that did, waits for the GPU and makes the frames' command pools
+  again, and the upload queue too once more than its staging went through it since. An
+  idle program has little left on the GPU to wait for, and the next frame's recording
+  grows the pools back only to what it uses. Not under `GOOSE_NGFX_BENCH`, whose
+  timestamps live in the pools.
+- **Measured on the M1 Pro**, at rest in a 1280 × 800 window (2560 × 1600 pixels), the
+  app's footprint: Draughts' 2D game 309 MB at the first sizes, 167 MB sized from use,
+  147 MB drawing into the window's image, 118 MB with the idle trim and the smaller
+  chunks, against 115 MB on its gfx build; its 3D game 614, 419, 389, and 315 MB, against
+  358 MB. A program that opens ngfx and clears three frames went from 160 MB (138 MB of
+  it graphics: 64 MB chunks committed whole, 2 × 16 MB of frame memory, a 32 MB upload
+  queue) to 40 MB.
 - **All GPU work runs on queue zero.** No program in the acceptance set needs async
   compute, and on M1 NoGraphicsAPI leaves open whether its queues are independent
   engines, so no gain could be measured. Adding it later extends the surface without

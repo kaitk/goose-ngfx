@@ -4,4 +4,5 @@ same size, same screen true
 resized to 48 x 16, same handle true
 drawn after the resize: 768 pixels, first 0,0,255
 frame memory grown within a frame: true
+after idle frames: uploaded 3,9; drawn 0,255,0
 open count 1

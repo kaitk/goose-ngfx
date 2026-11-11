@@ -42,6 +42,26 @@ fn main() {
     for i in 1..addresses.len { distinct = distinct && addresses[i] != addresses[i - 1]; }
     print("frame memory grown within a frame: ", distinct);
     for i in 5 { ngfx::present(); }
+    // A frame that records nothing after frames that did gives back the driver's
+    // memory for recording, and the upload queue's once more than its staging went
+    // through it: uploads, draws and read-back work after it as before.
+    var data: u8[>..] = [];
+    data.resize(6 << 20, 3);
+    let big = ngfx::buffer(data);
+    ngfx::present();
+    ngfx::present();
+    data[5 << 20] = 9;
+    ngfx::update_buffer(big, data);
+    ngfx::present();
+    ngfx::present();
+    var back: u8[>..] = [];
+    back.resize(data.len, 0);
+    ngfx::read_buffer(big, 0, back);
+    ngfx::begin_screen(float4 { 0.0, 1.0, 0.0, 1.0 });
+    ngfx::end_pass();
+    let green = ngfx::read_pixels(ngfx::screen());
+    print("after idle frames: uploaded ", back[0], ",", back[5 << 20], "; drawn ", green[0], ",", green[1], ",",
+          green[2]);
     print("open count ", ngfx::open_count());
     ngfx::close();
 }

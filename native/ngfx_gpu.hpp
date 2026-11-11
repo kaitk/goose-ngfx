@@ -17,7 +17,6 @@
 
 #include <NoGraphicsAPI/NoGraphicsAPI.hpp>
 #include <NoGraphicsAPIUtility/bump_allocator.hpp>
-#include <NoGraphicsAPIUtility/delete_queue.hpp>
 #include <NoGraphicsAPIUtility/heap_allocator.hpp>
 #include <NoGraphicsAPIUtility/texture_allocator.hpp>
 #include <NoGraphicsAPIUtility/texture_upload.hpp>
@@ -217,11 +216,11 @@ constexpr uint32 frames_in_flight = 2;
 // a chunk gets memory of exactly its size, shared with nothing, so a large
 // resource never keeps a large block alive or rounds up to one.
 constexpr uint64 frame_memory_start = 256ull << 10;  // per frame in flight
-constexpr uint64 buffer_chunk_size = 8ull << 20;
+constexpr uint64 buffer_chunk_size = 2ull << 20;
 constexpr uint32 buffer_chunk_allocations = 4096;
 // Texture memory grows a chunk at a time, as buffer memory does: a texture
 // over half a chunk gets a heap of its own.
-constexpr uint64 texture_chunk_size = 8ull << 20;
+constexpr uint64 texture_chunk_size = 4ull << 20;
 constexpr uint32 texture_chunk_textures = 1024;
 constexpr uint32 texture_descriptors = 8192;
 constexpr uint32 sampler_descriptors = 1024;
@@ -232,7 +231,6 @@ constexpr uint64 upload_capacity = 4ull << 20;
 // for each upload that overlaps an earlier one in the batch; past this many,
 // starting another waits on the CPU for the oldest.
 constexpr uint32 upload_batches = frames_in_flight * 4;
-constexpr uint32 delete_capacity = 1u << 16;
 
 // Indices into a descriptor heap: the lowest free one first.
 struct SlotAllocator
@@ -258,6 +256,17 @@ struct SlotAllocator
     }
 };
 
+// A release waiting for the GPU: fn(arg) once the submission `retire` has
+// finished. Kept in lists that grow as needed rather than
+// NoGraphicsAPIUtility's DeleteQueue, whose fixed ring of 128-byte callbacks
+// held 9 MB at the capacity a burst of releases needs.
+struct Release
+{
+    uint64 retire;
+    void (*fn)(void*);
+    void* arg;
+};
+
 struct State
 {
     Device* device = nullptr;
@@ -276,11 +285,11 @@ struct State
     // Destinations in the upload batch being built.
     std::vector<GpuRange> uploaded;
     std::vector<TextureUpload> uploaded_textures;
-    DeleteQueue* deletes = nullptr;
     // Releases since the last submission of the frame's commands, which wait
-    // for that submission.
-    std::vector<void (*)(void*)> pending_fns;
-    std::vector<void*> pending_args;
+    // for that submission, and those waiting for the submission they name,
+    // in its order.
+    std::vector<Release> pending;
+    std::vector<Release> retiring;
 
     std::vector<GpuHeap> buffer_heaps;
     std::vector<HeapAllocator*> buffer_allocators;
@@ -310,6 +319,11 @@ struct State
     int width = 0, height = 0;
     RenderView* drawable = nullptr;
     bool presented = false;         // this frame presented the window's image
+    // Whether this frame recorded GPU work, whether any frame has since the
+    // last trim (ngfx_gpu_next_frame), and the bytes uploaded since then.
+    bool worked = false;
+    bool worked_since_trim = false;
+    uint64 uploaded_since_trim = 0;
     TextureSlot stand_in{};
     ngfx_compute_pipeline mip_pipeline{};   // made on first use, kept until close
 

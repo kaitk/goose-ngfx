@@ -19,17 +19,27 @@ void report_error(const char* message, bool fatal) noexcept
     if (fatal) fprintf(stderr, "ngfx: NoGraphicsAPI: %s\n", message);
 }
 
-// Something to release once the submission that last used it has finished.
+// The releases since the last submission, to run once `retire` has.
 void run_pending(uint64 retire)
 {
-    for (size_t i = 0; i < g.pending_fns.size(); ++i)
+    for (Release& r : g.pending)
     {
-        void (*fn)(void*) = g.pending_fns[i];
-        void* arg = g.pending_args[i];
-        g.deletes->defer(retire, [fn, arg]() noexcept { fn(arg); });
+        r.retire = retire;
+        g.retiring.push_back(r);
     }
-    g.pending_fns.clear();
-    g.pending_args.clear();
+    g.pending.clear();
+}
+
+// Runs the releases whose submissions have finished; all of them when `all`.
+void release_retired(bool all)
+{
+    const uint64 done = all ? UINT64_MAX : timeline_completed_value(g.timeline.semaphore);
+    size_t n = 0;
+    while (n < g.retiring.size() && g.retiring[n].retire <= done) ++n;
+    if (!n) return;
+    // A release may defer another, which lands in `pending`, not here.
+    for (size_t i = 0; i < n; ++i) g.retiring[i].fn(g.retiring[i].arg);
+    g.retiring.erase(g.retiring.begin(), g.retiring.begin() + ptrdiff_t(n));
 }
 
 void begin_frame_commands()
@@ -154,9 +164,41 @@ bool create_screen(int w, int h)
     return true;
 }
 
+// Gives back the driver memory that recording keeps: a Metal 4 command
+// allocator holds on to the most it was ever recorded into, and resetting it
+// returns none, so the frames that set a program up (the textures'
+// initialization, uploads in parts) leave their command memory with it for
+// good: 11 MB of Draughts' 20 MB of driver memory at rest. The pools are made
+// again, and the upload queue too once more than its staging has gone
+// through it. Waits for the GPU first, which an idle program has little left
+// for.
+void trim()
+{
+    wait_timeline(g.timeline);
+    release_retired(false);
+    for (uint32 i = 0; i < frames_in_flight; ++i)
+    {
+        destroy_command_pool(g.pools[i]);
+        g.pools[i] = create_command_pool(g.device);
+        g.pool_values[i] = 0;
+    }
+    if (g.uploaded_since_trim > upload_capacity)
+    {
+        g.uploads->destroy();
+        delete g.uploads;
+        g.uploads = new UploadQueue(g.device, upload_capacity, 0, upload_batches);
+    }
+    g.worked_since_trim = false;
+    g.uploaded_since_trim = 0;
+}
+
 } // namespace
 
-CommandBuffer* frame_commands() { return g.commands; }
+CommandBuffer* frame_commands()
+{
+    g.worked = true;
+    return g.commands;
+}
 
 namespace {
 struct OldFrameMemory
@@ -219,7 +261,11 @@ RenderView* screen_view()
     return render_view(&g.stand_in, 0, 0);
 }
 
-CommandBuffer* begin_setup() { return begin_commands(g.pools[g.slot]); }
+CommandBuffer* begin_setup()
+{
+    g.worked = true;
+    return begin_commands(g.pools[g.slot]);
+}
 
 void end_setup(CommandBuffer* commands)
 {
@@ -231,8 +277,7 @@ void end_setup(CommandBuffer* commands)
 
 void defer_release(void (*fn)(void*), void* arg)
 {
-    g.pending_fns.push_back(fn);
-    g.pending_args.push_back(arg);
+    g.pending.push_back({.retire = 0, .fn = fn, .arg = arg});
 }
 
 void flush_uploads()
@@ -244,6 +289,8 @@ void flush_uploads()
 
 void upload(GpuRange destination, const void* data, uint64 size)
 {
+    g.worked = true;
+    g.uploaded_since_trim += size;
     const byte* begin = static_cast<const byte*>(destination.gpu);
     for (const GpuRange& r : g.uploaded)
     {
@@ -273,6 +320,8 @@ void upload(GpuRange destination, const void* data, uint64 size)
 
 void upload_texture(TextureSlot* s, const TextureCopyDesc& region, const void* data, uint64 size)
 {
+    g.worked = true;
+    g.uploaded_since_trim += size;
     auto overlap = [](uint32 a, uint32 a_size, uint32 b, uint32 b_size) { return a < b + b_size && b < a + a_size; };
     for (const TextureUpload& u : g.uploaded_textures)
     {
@@ -317,7 +366,7 @@ void finish()
 {
     submit_frame_commands();
     wait_timeline(g.timeline);
-    g.deletes->tick();
+    release_retired(false);
     begin_frame_commands();
 }
 
@@ -363,7 +412,10 @@ bool ngfx_gpu_open(void* layer, int w, int h)
     // The window's image takes what a frame draws as it is, without sRGB
     // conversion, as gfx's swapchain does.
     const DeviceInit init = create_device({.window = layer, .swapchain_format = layer ? Format::bgra8_unorm : Format::undefined,
-                                           .desired_swapchain_image_count = 3});
+                                           .desired_swapchain_image_count = 3,
+                                           // Timestamp storage only for GOOSE_NGFX_BENCH: every
+                                           // command buffer reserves its queries in the driver's memory.
+                                           .timestamp_query_count = g.bench ? 256u : 0u});
     if (!init.device)
     {
         char why[512];
@@ -390,7 +442,6 @@ bool ngfx_gpu_open(void* layer, int w, int h)
     }
     g.uploads = new UploadQueue(g.device, upload_capacity, 0, upload_batches);
     if (!g.uploads->valid()) return ngfx_fail("creating the upload queue");
-    g.deletes = new DeleteQueue(g.timeline.semaphore, delete_capacity);
     g.texture_slots.capacity = texture_descriptors;
     g.sampler_slots.capacity = sampler_descriptors;
     begin_frame_commands();
@@ -420,8 +471,7 @@ void ngfx_gpu_close(void)
     run_pending(g.timeline.value);
     if (g.uploads) g.uploads->destroy();
     delete g.uploads;
-    if (g.deletes) g.deletes->drain();
-    delete g.deletes;
+    release_retired(true);
     release_pipelines();
     g.textures.each([](TextureSlot& s) {
         if (s.placed.texture) free_texture(s);
@@ -463,6 +513,11 @@ bool ngfx_gpu_next_frame(void)
     submit_frame_commands();
     const bool shown = g.presented;
     g.presented = false;
+    // The first frame that records nothing after frames that did: the
+    // program is idle, and the driver's memory for its work goes back.
+    if (!g.worked && g.worked_since_trim && !g.bench) trim();
+    g.worked_since_trim = g.worked_since_trim || g.worked;
+    g.worked = false;
     // The next frame in flight's pool and memory, once the frame that last
     // used them has finished, as examples/cube waits.
     g.slot = (g.slot + 1) % frames_in_flight;
@@ -470,7 +525,7 @@ bool ngfx_gpu_next_frame(void)
     if (g.bench) collect_stamps(g.slot);
     reset_command_pool(g.pools[g.slot]);
     g.frame_data[g.slot]->reset();
-    g.deletes->tick();
+    release_retired(false);
     g.uploads->reclaim();
     begin_frame_commands();
     begin_frame_stamps();

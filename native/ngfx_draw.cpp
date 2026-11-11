@@ -387,6 +387,7 @@ void ngfx_release_compute_pipeline(ngfx_compute_pipeline handle)
 uint8_t ngfx_begin_pass(const ngfx_pass_desc* desc)
 {
     if (!ngfx_need_device("begin_pass")) return 0;
+    g.worked = true;
     if (g.in_pass) return ngfx_misuse("begin_pass inside a pass: end_pass first");
     const ngfx_pass_desc& d = *desc;
     Targets t{};
@@ -612,6 +613,7 @@ void ngfx_draw_indexed_indirect(uint64_t root, uint64_t indices, int64_t indices
 void ngfx_dispatch(uint64_t root, int64_t x, int64_t y, int64_t z)
 {
     if (!ngfx_need_device("dispatch")) return;
+    g.worked = true;
     ComputeSlot* c = compute_for_dispatch("dispatch", root);
     if (!c || x <= 0 || y <= 0 || z <= 0) return;
     bind_for_dispatch(c);
@@ -621,6 +623,7 @@ void ngfx_dispatch(uint64_t root, int64_t x, int64_t y, int64_t z)
 void ngfx_dispatch_indirect(uint64_t root, uint64_t arguments)
 {
     if (!ngfx_need_device("dispatch_indirect")) return;
+    g.worked = true;
     ComputeSlot* c = compute_for_dispatch("dispatch_indirect", root);
     GpuRange args;
     if (!c || !indirect_arguments("dispatch_indirect", arguments, 1, 0, 12, &args)) return;
