@@ -100,7 +100,7 @@ root file, from a directory or from git, and imports the modules:
 
 ```goose
 import ngfx from "../";                            // the samples and tests
-import ngfx from "github.com/kaitk/goose-ngfx@v0.3.0";
+import ngfx from "github.com/kaitk/goose-ngfx@v0.4.0";
 import ngfx.ngfx_ui;                               // the ui bridge, if wanted
 ```
 

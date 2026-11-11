@@ -14,7 +14,7 @@ import vec;
 import math;
 import os;
 import ngfx from "../";
-import gfx from "../../goose_gfx";
+import gfx from "github.com/kaitk/goose_gfx@ngfx";
 
 struct Vertex { pos: float2, uv: float2 }
 struct Root { vertices: u64, texture: u32, sampler: u32 }

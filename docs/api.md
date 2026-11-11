@@ -11,7 +11,7 @@ The header of `ngfx.goose` is the reference, `samples/cube.goose` a small comple
 program, and [design.md](design.md) how it works and what it costs.
 
 ```goose
-import ngfx from "github.com/kaitk/goose-ngfx@v0.3.0";
+import ngfx from "github.com/kaitk/goose-ngfx@v0.4.0";
 
 struct Root { vertices: u64, transform: ngfx::float4x4 }
 

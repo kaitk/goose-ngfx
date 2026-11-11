@@ -148,7 +148,6 @@ def patch(text, side, mine):
     text = text[:at] + "\n" + hooks + text[at:]
     if side == "ngfx":
         text = text.replace('import ngfx from "../";', 'import ngfx from "../../../../";')
-        text = text.replace('import gfx from "../../goose_gfx";', 'import gfx from "../../../../../goose_gfx";')
     return text
 
 

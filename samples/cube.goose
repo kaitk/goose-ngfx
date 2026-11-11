@@ -20,7 +20,7 @@ import vec;
 import math;
 import os;
 import ngfx from "../";
-import gfx from "../../goose_gfx";
+import gfx from "github.com/kaitk/goose_gfx@ngfx";
 
 // One corner of one face: where it is, which way the face points, and the
 // face's color as four bytes, which the shader unpacks to a float4 from 0

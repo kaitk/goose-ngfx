@@ -26,7 +26,7 @@ import vec;
 import math;
 import os;
 import ngfx from "../";
-import gfx from "../../goose_gfx";
+import gfx from "github.com/kaitk/goose_gfx@ngfx";
 import ui;
 import ngfx.ngfx_ui;
 
