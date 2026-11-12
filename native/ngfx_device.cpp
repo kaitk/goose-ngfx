@@ -407,6 +407,8 @@ bool ngfx_gpu_open(void* layer, int w, int h, bool vsync)
     g.windowed = layer != nullptr;
     const char* sync = getenv("GOOSE_NGFX_SYNC");
     g.full_sync = sync && !strcmp(sync, "full");
+    const char* pass_barrier = getenv("GOOSE_NGFX_PASS_BARRIER");
+    g.pass_barrier = pass_barrier && !strcmp(pass_barrier, "1");
     const char* bench = getenv("GOOSE_NGFX_BENCH");
     g.bench = bench && !strcmp(bench, "1");
     // The window's image takes what a frame draws as it is, without sRGB

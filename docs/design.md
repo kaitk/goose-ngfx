@@ -284,9 +284,10 @@ compares with the `extern` declarations in `ngfx.goose`.
   acquire semaphore NoGraphicsAPI waits on. The headless screen and every other target
   get the barrier, as their last frame's writes may still be in flight.
   `GOOSE_NGFX_SYNC=full` records it anyway.
-- **On Metal, each pass starts with a barrier between render stages**, which no data
-  hazard calls for. Without one, the M1 Pro's GPU can hang with both its vertex and
-  tiling slots busy while another process draws with Metal, and macOS restarts the
+- **`GOOSE_NGFX_PASS_BARRIER=1` starts each pass with a barrier between render stages**,
+  which no data hazard calls for; it is off by default (2026-11-12), to find out
+  whether a later macOS still needs it. Without one, the M1 Pro's GPU could hang on
+  macOS 26.3.1 with both its vertex and tiling slots busy while another process draws with Metal, and macOS restarts the
   GPU (task 008). Any barrier with a render stage on both sides prevents it, whatever
   it orders: Vertex to Vertex,
   Fragment to Vertex, Fragment to Fragment, and the frame boundary all do, while an

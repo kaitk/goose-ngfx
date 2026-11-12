@@ -248,6 +248,7 @@ executable's once built.
 | `GOOSE` | `run_tests.py` | The Goose compiler |
 | `GOOSE_GFX_HEADLESS` | the layer | `ngfx::open` opens no window, as `open_headless` |
 | `GOOSE_NGFX_SYNC=full` | the layer | A full barrier around every pass and dispatch, to expose a missing `ngfx::barrier` |
+| `GOOSE_NGFX_PASS_BARRIER=1` | the layer | A barrier between render stages before each pass, for the M1 Pro's GPU hang on macOS 26.3.1 (task 008) |
 | `GOOSE_NGFX_BENCH=1` | the layer | Report GPU frame timestamps and Slang compilation time on stderr at close, for the benchmark harness |
 | `GOOSE_NGFX_NO_VSYNC=1` | the layer | Disable presentation vsync for benchmark runs |
 | `NGFX_SLANGC` | the package's CMake, `ngfx::slang` | The slangc to build with and to run, in place of the one CMake found |

@@ -25,6 +25,9 @@ have each hidden it. A build of `45dd8be`, before task 003, hangs too.
       driver
 - [x] Tests pass plainly and under `GOOSE_NGFX_SYNC=full`
 - [x] An interleaved A/B in which the default mode hangs and the fix doesn't
+- [ ] The barrier off by default, behind `GOOSE_NGFX_PASS_BARRIER=1` (2026-11-12): rerun
+      the hang's repro (headless `mini_minecraft --frames 40`, repeated, as above) on the
+      Mac's current macOS without it, and turn it back on by default if it still hangs
 - [ ] Compare every-pass and first-pass barriers in a program with multiple passes
 - [ ] Rerun the native repro on a later macOS version before sharing it
 - [ ] Report the repro and affected OS versions to NoGraphicsAPI's author and Apple

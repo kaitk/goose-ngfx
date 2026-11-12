@@ -343,6 +343,9 @@ struct State
     // GOOSE_NGFX_SYNC=full: a full barrier around every pass and dispatch, to
     // find a missing program barrier by comparing output.
     bool full_sync = false;
+    // GOOSE_NGFX_PASS_BARRIER=1: a barrier between render stages before each
+    // pass, for the M1 Pro's hang on macOS 26.3.1 (tasks/008); off by default.
+    bool pass_barrier = false;
     // GOOSE_NGFX_BENCH=1: each slot's stamps are written by its frame's
     // commands and read once the timeline wait has seen them finish.
     bool bench = false;
