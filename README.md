@@ -66,10 +66,12 @@ Version 0.5.0: the API may still change. Built and tested on macOS 26 with Metal
 Pro) at the Goose pin below: the API check, every test, and every sample pass, run in
 the compiler and built. iOS 26 runs on an iPhone 13 mini (A15), in Draughts; iPadOS
 builds the same and is untried. Windows with Vulkan passed at v0.3.0 and is not yet run
-at v0.4.0 or this release, which change how ngfx gets its window and presents. On Linux, ngfx builds and runs headless only, since NoGraphicsAPI can't present
-there, and needs a GPU whose Vulkan driver has `VK_EXT_descriptor_heap` (Mesa RADV
-26.2 or later, or NVIDIA's). The Linux build is tested in WSL, which has no such
-driver, so there the GPU tests skip.
+at v0.4.0 or this release, which change how ngfx gets its window and presents. On Linux,
+ngfx presents on Wayland, or on X11 where there is none (`open_linux`), and needs a GPU
+whose Vulkan driver has `VK_EXT_descriptor_heap` (Mesa RADV 26.2 or later, or NVIDIA's):
+every test and sample passes on an RX 6800 (RADV, Mesa 26.2.4), and the samples present
+in a window under GNOME 50, on Wayland and through XWayland
+([docs/development.md](docs/development.md#linux)).
 
 ## Layout
 
@@ -153,7 +155,7 @@ cd samples; & $env:GOOSE mini_minecraft.goose
 | What | Pin | Why |
 |---|---|---|
 | Goose | `aardappel/goose` `v2026.4` (`6c1fbc7`, 2026-11-05): the compiler tested with | The language, the package system, and the runtime ABI change often |
-| NoGraphicsAPI | `kaitk/NoGraphicsAPI` `ngfx`, `a6e78ed`: `sebbbi/NoGraphicsAPI` `0400414` with ASTC 6 × 6 added | Its API is young and changes without notice; the fork holds what ngfx needs before upstream has it |
+| NoGraphicsAPI | `kaitk/NoGraphicsAPI` `ngfx`, `98225fb`: `sebbbi/NoGraphicsAPI` `0400414` with ASTC 6 × 6, `DeviceDesc::vsync`, and presenting on Linux added | Its API is young and changes without notice; the fork holds what ngfx needs before upstream has it |
 
 Move a pin in its own commit, with the test results that still hold
 ([docs/development.md](docs/development.md#move-the-pins)).

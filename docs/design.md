@@ -77,8 +77,8 @@ The Metal driver workaround and its measured cost are described under
 These choices follow NoGraphicsAPI rather than the rest of Goose. Each is deliberate.
 
 - **A separate module, not a gfx backend.** NoGraphicsAPI needs Metal 4 or Vulkan 1.4 on
-  recent GPUs and drivers, and can't present on Linux. Under gfx it would either hold
-  gfx's API to what SDL_GPU and NoGraphicsAPI can both do, or drop platforms gfx supports.
+  recent GPUs and drivers. Under gfx it would either hold gfx's API to what SDL_GPU and
+  NoGraphicsAPI can both do, or drop platforms gfx supports.
 - **Slang, not GLSL.** NoGraphicsAPI's shader headers are Slang. `ngfx::slang` runs
   `slangc` (and Xcode's `metal` and `metallib` on macOS) as subprocesses, so running an
   ngfx program needs those tools installed.

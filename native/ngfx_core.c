@@ -94,7 +94,8 @@ const char *ngfx_cstr(ngfx_bytes s, char *buf, size_t cap) {
 
 /* The window's image at the screen's size, which a pass into the screen
    needs; on Apple's systems the layer is told, as SDL's view may not have
-   followed a resize yet. Elsewhere the swapchain follows the window. */
+   followed a resize yet. Elsewhere the swapchain follows the window, or on
+   Wayland the screen's size (create_screen). */
 static void ngfx_size_layer(int64_t width, int64_t height) {
 #if defined(__APPLE__)
     if (!ngfx.layer) return;
@@ -109,13 +110,20 @@ static void ngfx_size_layer(int64_t width, int64_t height) {
 
 uint8_t ngfx_available(void) { return 1; }
 
-uint8_t ngfx_open(uint64_t window, int64_t width, int64_t height, int64_t flags) {
+/* The device, drawing into `window`; on Linux a Wayland surface or an X11
+   window, as `kind` says, on `display`. */
+static uint8_t ngfx_open_on(uint64_t display, uint64_t window, int64_t kind, int64_t width,
+                            int64_t height, int64_t flags) {
     if (!ngfx_need_main_thread("open")) return 0;
     if (ngfx.open) return ngfx_misuse("ngfx is already open: close() it first");
     if (width < 1 || height < 1 || width > 16384 || height > 16384)
         return ngfx_misuse("a screen of %lld x %lld pixels", (long long)width, (long long)height);
     void *layer = (void *)(uintptr_t)window;
-#if !defined(__APPLE__) && !defined(_WIN32)
+#if defined(__linux__) && !defined(__ANDROID__)
+    if (layer && !display) return ngfx_misuse("open() on Linux: open_linux() takes the window's display");
+    if (layer && kind != NGFX_NATIVE_WAYLAND && kind != NGFX_NATIVE_X11)
+        return ngfx_misuse("open_linux() with a window of kind %lld", (long long)kind);
+#elif !defined(__APPLE__) && !defined(_WIN32)
     if (layer) return ngfx_fail("NoGraphicsAPI cannot present on this platform; open headless");
 #endif
     /* For the benchmarks (bench/run_bench.py), as the flag. */
@@ -132,7 +140,8 @@ uint8_t ngfx_open(uint64_t window, int64_t width, int64_t height, int64_t flags)
     ngfx.windowed = layer != NULL;
     ngfx.layer = layer;
     ngfx_size_layer(width, height);
-    if (!ngfx_gpu_open(layer, (int)width, (int)height, !(flags & NGFX_NO_VSYNC))) {
+    if (!ngfx_gpu_open(layer, (void *)(uintptr_t)display, kind == NGFX_NATIVE_X11, (int)width,
+                       (int)height, !(flags & NGFX_NO_VSYNC))) {
         char why[sizeof ngfx.error];
         memcpy(why, ngfx.error, sizeof why);
         ngfx_close();
@@ -143,8 +152,17 @@ uint8_t ngfx_open(uint64_t window, int64_t width, int64_t height, int64_t flags)
     return true;
 }
 
+uint8_t ngfx_open(uint64_t window, int64_t width, int64_t height, int64_t flags) {
+    return ngfx_open_on(0, window, 0, width, height, flags);
+}
+
+uint8_t ngfx_open_linux(uint64_t display, uint64_t window, int64_t kind, int64_t width,
+                        int64_t height, int64_t flags) {
+    return ngfx_open_on(display, window, kind, width, height, flags);
+}
+
 uint8_t ngfx_open_headless(int64_t width, int64_t height, int64_t flags) {
-    return ngfx_open(0, width, height, flags);
+    return ngfx_open_on(0, 0, 0, width, height, flags);
 }
 
 void ngfx_close(void) {

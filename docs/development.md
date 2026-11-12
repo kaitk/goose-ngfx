@@ -35,7 +35,8 @@ Windows 11, tested on an RTX 4090 (driver 617.42):
 | slangc | Slang's `windows-x86_64` release | 2026.18.3 (2026.18.2 or later) |
 | Python | `PATH` | 3.14.6 |
 
-Linux, tested in WSL 2 on Ubuntu 26.04 (2026-10-11), headless only:
+Linux, tested in WSL 2 on Ubuntu 26.04 (2026-10-11), headless, and in a Fedora 43
+distrobox on Bazzite (2026-11-12), presenting on the host:
 
 | Tool | Where | Version |
 |---|---|---|
@@ -43,15 +44,21 @@ Linux, tested in WSL 2 on Ubuntu 26.04 (2026-10-11), headless only:
 | Vulkan SDK | LunarG's Linux tarball, `source <sdk>/setup-env.sh`, which also has `spirv-val` | 1.4.363 (1.4.357 or later) |
 | slangc | Slang's `linux-x86_64` release | 2026.18.3 (2026.18.2 or later) |
 | X11 headers, for `ui` and `audio` | `libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxtst-dev libxkbcommon-dev` | |
+| Wayland headers, for gfx's SDL to open a Wayland window | `libwayland-dev libdecor-0-dev wayland-protocols libegl-dev` (Fedora: `wayland-devel libdecor-devel wayland-protocols-devel libglvnd-devel`) | |
 | Python | `python3` | 3.14 |
 
 The distribution's Vulkan headers may be older than 1.4.357 (Ubuntu 26.04's are
-1.4.341), hence the SDK. ngfx itself needs no X11: it never opens a window.
+1.4.341), hence the SDK. ngfx itself needs neither X11's nor Wayland's headers: it draws
+into the window it is given.
 Goose's gfx package, which `ui` and `audio` come from, builds nothing without X11 or
 Wayland headers, and SDL then wants all of the X11 ones above, not only the two gfx's
 message names. Without them, a program importing `ui` or `audio` fails to link
-(`cannot find -lgoose_gfx_package`). On an immutable distribution such as Bazzite,
-build inside a toolbox or distrobox container (untried).
+(`cannot find -lgoose_gfx_package`). Without the Wayland ones gfx's SDL has no Wayland,
+and a window opens through XWayland. On an immutable distribution such as Bazzite, build
+inside a distrobox container (`sudo dnf install` the packages there) and run there, or on
+the host when the container's Mesa is older than 26.2 (Fedora 43's 25.3 has no
+`VK_EXT_descriptor_heap`): a program built on the container's glibc runs on the host's
+newer one.
 
 `goose toolchain` says which C compiler, CMake, and git the Goose compiler uses. On the
 Mac it picks `/usr/bin/cc`, Apple clang; on Linux `cc`. On Windows it picks clang-cl
@@ -196,21 +203,31 @@ validation and results. The harness is implemented, but a complete cross-platfor
 comparison has not been recorded. The Metal hang experiments in task 008 are narrower
 measurements and do not establish performance parity with gfx.
 
-## Linux, headless
+## Linux
 
-NoGraphicsAPI can't present on Linux, so `ngfx::open` fails there with "NoGraphicsAPI
-cannot present on this platform; use ngfx::open_headless", unless `GOOSE_GFX_HEADLESS=1`
-makes it open headless, as `run_tests.py` does. A machine without a qualifying Vulkan
-driver gets "no NoGraphicsAPI device ... No compatible GPU found", which names the
-extensions, and the runner counts it as a skip. In WSL, then, `run_tests.py` passes the
-API check, the Slang error tests, the thread test, and `ngfx_slang_sources`, which need
-no device, and builds every sample.
+`ngfx::open_linux` presents into gfx's window: a Wayland surface, or an X11 window where
+SDL opened X11 (`SDL_VIDEO_DRIVER=x11` asks for it, through XWayland on a Wayland
+desktop). `ngfx::open` given a window is a misuse there. A machine without a qualifying
+Vulkan driver gets "no NoGraphicsAPI device ... No compatible GPU found", which names the
+extensions, and the runner counts it as a skip.
+
+Tested on Bazzite 44 (GNOME 50 on Wayland), an RX 6800 on Mesa 26.2.4, on 2026-11-12.
+Bazzite is immutable, so the build runs in a Fedora 43 distrobox, whose Mesa 25.3 has no
+`VK_EXT_descriptor_heap`: there `run_tests.py` passes the API check, the Slang error tests,
+the thread test, and `ngfx_slang_sources`, and builds the rest, which skip. Run on the
+host, the same builds pass all 26 (each test also under `GOOSE_NGFX_SYNC=full`, and the
+four samples), and `cube` and `ui_todo` present in a window on Wayland and on X11.
+Fedora's SELinux refuses TinyCC's code in memory, so `--aot`; Fedora's GCC breaks the
+gfx package's Wayland build ([findings](goose-findings.md)), so `--cc clang`:
 
 ```sh
 source ~/vulkansdk/1.4.363.0/setup-env.sh
 export NGFX_SLANGC=~/slang/bin/slangc GOOSE=~/goose/build/goose
-python3 scripts/run_tests.py
+python3 scripts/run_tests.py --aot --cc clang
 ```
+
+In WSL, which has no qualifying driver, `run_tests.py` passes the same four and builds
+every sample.
 
 ## Run the samples
 

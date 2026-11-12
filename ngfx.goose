@@ -6,7 +6,7 @@
 //
 //   gfx::open("title", w, h, gfx::WINDOW_ONLY);   // a window, no GPU device
 //   let size = gfx::screen_size();
-//   ngfx::open(gfx::native_window(), size.x, size.y, 0);
+//   ngfx::open(gfx::native_window(), size.x, size.y, 0);  // open_linux on Linux
 //   while gfx::frame() {                          // events; waits when idle
 //       ngfx::resize(gfx::screen_size());
 //       if changed || gfx::needs_present() { ...draw into screen()... }
@@ -80,6 +80,9 @@ import math;
 
 // open() and open_headless() flags.
 let NO_VSYNC: i32 = 16;
+// open_linux()'s window kinds, gfx's native_kind().
+let NATIVE_WAYLAND: i32 = 1;
+let NATIVE_X11: i32 = 2;
 
 // Texture kinds.
 let TEXTURE_2D: i32 = 0;
@@ -265,10 +268,14 @@ extern fn available() -> bool = "ngfx_available";
 
 // The GPU device, drawing into `window`, a native window's handle as a u64
 // (a CAMetalLayer on Apple's systems, an HWND on Windows; gfx's
-// native_window()), with a screen of width x height pixels, the window's size
+// native_window(); on Linux open_linux()), with a screen of width x height pixels, the window's size
 // in pixels; or headless for a window of 0. False with error() set. Flags:
 // NO_VSYNC presents without waiting for the display, for benchmarks.
 extern fn open(window: u64, width: i64, height: i64, flags: i64) -> bool = "ngfx_open";
+// open() on Linux, where `window` is a Wayland surface or an X11 window, as
+// `kind` says (NATIVE_WAYLAND or NATIVE_X11), on `display`: gfx's
+// native_window(), native_display(), and native_kind().
+extern fn open_linux(display: u64, window: u64, kind: i64, width: i64, height: i64, flags: i64) -> bool = "ngfx_open_linux";
 // The device alone, drawing into a screen of width x height that no window
 // shows: for tests, and for tools that only compute or render to files.
 extern fn open_headless(width: i64, height: i64, flags: i64) -> bool = "ngfx_open_headless";

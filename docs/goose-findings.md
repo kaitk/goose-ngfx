@@ -29,7 +29,24 @@ Workaround: ...
 
 ## Bugs
 
-None open.
+### A build folder named after Fedora's GCC breaks SDL's Wayland step
+
+Found on `6c1fbc7`. Status: open
+
+Goose names a package's build folder after the C compiler's version, which it takes
+from `gcc --version`. Fedora's GCC prints `gcc (GCC) 15.3.1 20251201 (Red Hat 15.3.1-1)`,
+so the folder is `gcc-15.3.1-1)-a920ca84`, with a stray parenthesis. The gfx package's
+SDL, configured with the Wayland headers, runs `wayland-scanner` in that folder through
+`/bin/sh`, which stops at the `)`: `/bin/sh: -c: line 1: cd ".../gcc-15.3.1-1)-a920ca84/
+cmake/pkg/SDL" && /usr/bin/wayland-scanner client-header ...`, and every program
+importing gfx fails to link. `goose toolchain` shows the same: `gcc 15.3.1-1)`. Expected:
+the folder name keeps only the version's own characters.
+
+    # Fedora 43, gcc 15.3.1, wayland-devel installed
+    goose build samples/cube.goose
+
+Workaround: `--cc clang` (`clang-21.1.8-d8e5c55a`), for `goose build` and
+`scripts/run_tests.py`.
 
 ## Feature requests
 

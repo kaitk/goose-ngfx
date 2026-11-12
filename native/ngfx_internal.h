@@ -41,8 +41,9 @@ const char *ngfx_cstr(ngfx_bytes s, char *buf, size_t cap);
 /* --- the GPU half (ngfx_device.cpp) ----------------------------------------- */
 
 /* The device, drawing to `layer` (a CAMetalLayer on Apple, an HWND on
-   Windows) or headless for NULL, with a screen of w x h pixels. */
-bool ngfx_gpu_open(void *layer, int w, int h, bool vsync);
+   Windows, on Linux a Wayland surface, or an X11 window for x11, on `display`)
+   or headless for NULL, with a screen of w x h pixels. */
+bool ngfx_gpu_open(void *layer, void *display, bool x11, int w, int h, bool vsync);
 /* Waits for the GPU and releases everything; safe after a failed open. */
 void ngfx_gpu_close(void);
 /* Ends the frame being recorded: submits it, presenting the window's image

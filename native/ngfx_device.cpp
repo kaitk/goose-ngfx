@@ -135,7 +135,8 @@ bool create_screen_depth(int w, int h)
 
 // The screen at w x h, with its depth only once a program has asked for it
 // (screen_depth()): most draw the screen without one. Windowed, the screen's
-// slot only describes the window's image, which the window's size sets.
+// slot only describes the window's image, which the window's size sets (and
+// on Wayland, where the window takes the image's size, w x h does).
 bool create_screen(int w, int h)
 {
     if (w < 1) w = 1;
@@ -150,6 +151,7 @@ bool create_screen(int w, int h)
         s->goose = {.kind = NGFX_TEXTURE_2D, .format = NGFX_BGRA8, .usage = NGFX_COLOR_TARGET, .width = w, .height = h,
                     .depth = 1, .mips = 1};
         release_stand_in();
+        set_drawable_extent(g.device, {.x = uint32(w), .y = uint32(h)});
     }
     else if (!replace_texture(g.screen, {.kind = NGFX_TEXTURE_2D, .format = NGFX_RGBA8,
                                          .usage = NGFX_SAMPLED | NGFX_COLOR_TARGET, .width = w, .height = h,
@@ -401,7 +403,7 @@ void ngfx_gpu_screen_size(int* w, int* h)
     *h = g.height;
 }
 
-bool ngfx_gpu_open(void* layer, int w, int h, bool vsync)
+bool ngfx_gpu_open(void* layer, void* display, bool x11, int w, int h, bool vsync)
 {
     set_error_callback(report_error);
     g.windowed = layer != nullptr;
@@ -413,7 +415,9 @@ bool ngfx_gpu_open(void* layer, int w, int h, bool vsync)
     g.bench = bench && !strcmp(bench, "1");
     // The window's image takes what a frame draws as it is, without sRGB
     // conversion, as gfx's swapchain does.
-    const DeviceInit init = create_device({.window = layer, .swapchain_format = layer ? Format::bgra8_unorm : Format::undefined,
+    const DeviceInit init = create_device({.window = layer, .display = display,
+                                           .window_system = x11 ? WindowSystem::xlib : WindowSystem::wayland,
+                                           .swapchain_format = layer ? Format::bgra8_unorm : Format::undefined,
                                            .desired_swapchain_image_count = 3, .vsync = vsync,
                                            // Timestamp storage only for GOOSE_NGFX_BENCH: every
                                            // command buffer reserves its queries in the driver's memory.
