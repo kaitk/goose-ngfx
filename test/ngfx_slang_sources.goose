@@ -41,7 +41,7 @@ fn main() {
     let written = ngfx::slang("""
         #include <NoGraphicsAPI/shader.slang>
         #include "probe_common.slang"
-        struct Params { float4 tint; float gain; };
+        struct Params { float4 tint; float gain, pad0, pad1, pad2; };
         GPU_ROOT(Params, root);
         [shader("fragment")]
         float4 probe() : SV_Target0 { return root.tint * doubled(root.gain); }
@@ -53,7 +53,7 @@ fn main() {
     // The parts of a module are its lines in order: doubled() from a global
     // does what the include did.
     let parts = ngfx::slang(doubled_slang, """
-        struct Params { float4 tint; float gain; };
+        struct Params { float4 tint; float gain, pad0, pad1, pad2; };
         GPU_ROOT(Params, root);
         [shader("fragment")]
         float4 probe() : SV_Target0 { return root.tint * doubled(root.gain); }

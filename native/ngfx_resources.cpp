@@ -163,9 +163,12 @@ PlacedTexture place_texture(CommandBuffer* setup, const TextureDesc& desc, int32
         for (size_t i = 0; i < g.texture_allocators.size(); ++i)
         {
             if (!g.texture_allocators[i] || g.texture_alone[i]) continue;
-            const PlacedTexture p = g.texture_allocators[i]->allocate(setup, desc);
+            const PlacedTexture p = g.texture_allocators[i]->allocate(desc);
             if (p.texture)
             {
+                // Placed textures start uninitialized, a freed range's
+                // earlier texture's metadata included.
+                initialize_texture(setup, p.texture);
                 chunk = int32(i);
                 return p;
             }
@@ -181,13 +184,14 @@ PlacedTexture place_texture(CommandBuffer* setup, const TextureDesc& desc, int32
     const TextureHeap heap = create_texture_heap(g.device, size);
     if (!heap.owner) return {};
     TextureAllocator* a = new TextureAllocator(g.device, heap, alone ? 1 : texture_chunk_textures);
-    const PlacedTexture p = a->allocate(setup, desc);
+    const PlacedTexture p = a->allocate(desc);
     if (!p.texture)
     {
         delete a;
         destroy_texture_heap(heap);
         return {};
     }
+    initialize_texture(setup, p.texture);
     // A chunk given back leaves its index free.
     size_t i = 0;
     while (i < g.texture_allocators.size() && g.texture_allocators[i]) ++i;

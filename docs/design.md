@@ -15,9 +15,10 @@ shaders fetch their own vertices through pointers.
 
 The submodule is a fork, `kaitk/NoGraphicsAPI`, for what ngfx needs that NoGraphicsAPI
 lacks (2026-11-11). Each change is a branch of its own on upstream's `main`, small and
-general, so it can be offered upstream as a pull request; the fork's `ngfx` branch is the
-upstream commit ngfx pins with every such change merged, and the submodule follows it.
-`main` mirrors upstream. The first change is ASTC 6 × 6 (`astc-6x6`), the block size
+general, so it can be offered upstream as a pull request; the fork's `main` is upstream's
+`main` with every such change merged, and the submodule follows it (2026-11-12, as
+`kaitk/goose_gfx`'s `main` is; until then the fork's `ngfx` branch held them on an older
+upstream commit). The first change is ASTC 6 × 6 (`astc-6x6`), the block size
 Draughts' photographs use. A change ngfx can make in its own layer stays there; the fork
 is for what only NoGraphicsAPI can do.
 Its pull request upstream, `astc-6x6` to `sebbbi/NoGraphicsAPI`, is the maintainer's to

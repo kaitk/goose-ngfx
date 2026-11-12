@@ -1,4 +1,4 @@
 [submodule "third_party/NoGraphicsAPI"]
 	path = third_party/NoGraphicsAPI
 	url = https://github.com/kaitk/NoGraphicsAPI
-	branch = ngfx
+	branch = main
