@@ -42,7 +42,7 @@ const char *ngfx_cstr(ngfx_bytes s, char *buf, size_t cap);
 
 /* The device, drawing to `layer` (a CAMetalLayer on Apple, an HWND on
    Windows) or headless for NULL, with a screen of w x h pixels. */
-bool ngfx_gpu_open(void *layer, int w, int h);
+bool ngfx_gpu_open(void *layer, int w, int h, bool vsync);
 /* Waits for the GPU and releases everything; safe after a failed open. */
 void ngfx_gpu_close(void);
 /* Ends the frame being recorded: submits it, presenting the window's image

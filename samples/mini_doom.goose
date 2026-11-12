@@ -40,7 +40,7 @@ import vec;
 import os;
 import binary;
 import ngfx from "../";
-import gfx from "github.com/kaitk/goose_gfx@ngfx";
+import gfx from "github.com/kaitk/goose_gfx@main";
 import audio;
 
 // --- the WAD directory and little-endian values ------------------------------

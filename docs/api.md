@@ -91,7 +91,7 @@ ngfx::close();
 gfx::close();
 ```
 
-`WINDOW_ONLY` is in `kaitk/goose_gfx`'s `ngfx` branch, proposed to Goose's gfx. Any other
+`WINDOW_ONLY` is in `kaitk/goose_gfx`'s `main`, proposed to Goose's gfx. Any other
 source of a native window does as well. The flag `NO_VSYNC` presents without waiting
 for the display, for benchmarks.
 

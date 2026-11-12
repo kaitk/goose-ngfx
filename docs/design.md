@@ -96,7 +96,7 @@ These choices follow NoGraphicsAPI rather than the rest of Goose. Each is delibe
   64-bit only, and CMake 3.25.
 - **A window from elsewhere.** ngfx has no platform: it draws into a native window the
   program gives it, in practice gfx's opened `WINDOW_ONLY`, which Goose's gfx doesn't
-  have yet (`kaitk/goose_gfx`'s `ngfx` branch has it, proposed upstream).
+  have yet (`kaitk/goose_gfx`'s `main` has it, proposed upstream).
 
 ## How it is built
 

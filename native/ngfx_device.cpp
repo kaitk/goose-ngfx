@@ -401,7 +401,7 @@ void ngfx_gpu_screen_size(int* w, int* h)
     *h = g.height;
 }
 
-bool ngfx_gpu_open(void* layer, int w, int h)
+bool ngfx_gpu_open(void* layer, int w, int h, bool vsync)
 {
     set_error_callback(report_error);
     g.windowed = layer != nullptr;
@@ -412,7 +412,7 @@ bool ngfx_gpu_open(void* layer, int w, int h)
     // The window's image takes what a frame draws as it is, without sRGB
     // conversion, as gfx's swapchain does.
     const DeviceInit init = create_device({.window = layer, .swapchain_format = layer ? Format::bgra8_unorm : Format::undefined,
-                                           .desired_swapchain_image_count = 3,
+                                           .desired_swapchain_image_count = 3, .vsync = vsync,
                                            // Timestamp storage only for GOOSE_NGFX_BENCH: every
                                            // command buffer reserves its queries in the driver's memory.
                                            .timestamp_query_count = g.bench ? 256u : 0u});

@@ -26,7 +26,7 @@ Declare the package in your program's root file, and import it:
 ```goose
 import vec;
 import ngfx from "github.com/kaitk/goose-ngfx@v0.5.0";
-import gfx from "github.com/kaitk/goose_gfx@ngfx";      // gfx with WINDOW_ONLY
+import gfx from "github.com/kaitk/goose_gfx@main";      // gfx with WINDOW_ONLY
 
 fn main() {
     guard gfx::open("Hello, ngfx", 640, 480, gfx::WINDOW_ONLY) else { abort(gfx::error()); }
@@ -46,7 +46,7 @@ events, time, and the wait of an idle program; ngfx presents, and tells gfx whet
 did. A program that draws only when something changed also draws when
 `gfx::needs_present()` says the window was exposed or resized: ngfx draws straight into
 the window's image and keeps no copy to show again. Goose's own gfx doesn't have `WINDOW_ONLY` yet, so a program takes gfx from
-`kaitk/goose_gfx`'s `ngfx` branch until it does.
+`kaitk/goose_gfx`'s `main` until it does.
 
 `goose hello.goose` runs it in the compiler's process; `goose build hello.goose` makes an
 executable. The first time, the compiler fetches the package with its submodules into

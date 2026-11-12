@@ -12,7 +12,7 @@ import vec;
 import math;
 import os;
 import ngfx from "../";
-import gfx from "github.com/kaitk/goose_gfx@ngfx";
+import gfx from "github.com/kaitk/goose_gfx@main";
 
 // The draw's root, as the shader declares it: the corners, then the quad's
 // offset and size in clip space, then its color.

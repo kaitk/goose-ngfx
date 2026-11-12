@@ -132,7 +132,7 @@ uint8_t ngfx_open(uint64_t window, int64_t width, int64_t height, int64_t flags)
     ngfx.windowed = layer != NULL;
     ngfx.layer = layer;
     ngfx_size_layer(width, height);
-    if (!ngfx_gpu_open(layer, (int)width, (int)height)) {
+    if (!ngfx_gpu_open(layer, (int)width, (int)height, !(flags & NGFX_NO_VSYNC))) {
         char why[sizeof ngfx.error];
         memcpy(why, ngfx.error, sizeof why);
         ngfx_close();

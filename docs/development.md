@@ -280,8 +280,9 @@ Then rebuild the compiler, run `python scripts/run_tests.py`, and update the pin
   ngfx's boundary, but not Goose's own layout rules; a change to those breaks a test.
 - Goose's gfx or ui API, which the samples, the benchmarks, and `ngfx_ui.goose` use for
   the window and input. They live in `aardappel/goose_gfx`, at the ref in Goose's
-  `src/blessed.txt`; the samples take gfx from `kaitk/goose_gfx`'s `ngfx` branch, that
-  ref with `WINDOW_ONLY`, until Goose's gfx has it.
+  `src/blessed.txt`; the samples take gfx from `kaitk/goose_gfx`'s `main`: upstream's
+  `main` with `WINDOW_ONLY` and the fork's other changes, each also a branch offered
+  upstream, until Goose's gfx has them.
 - The samples, which are ports of Goose's. When Goose's originals change, bring the ports
   in line and check the screenshots still match.
 
