@@ -890,7 +890,7 @@ struct Scene {
     sun: float4,              // xyz: direction, w: daylight strength
 }
 // A draw of the world: its vertices, the scene, and the atlas and sampler.
-struct WorldRoot { vertices: u64, scene: u64, atlas: u32, sampler: u32 }
+struct WorldRoot { vertices: u64, scene: u64, atlas: u32, sampler: u32, pad0: u32, pad1: u32 }
 let world_shader = """
     #include <NoGraphicsAPI/shader.slang>
 
@@ -903,7 +903,7 @@ let world_shader = """
         float4 haze;
         float4 sun;
     };
-    struct WorldRoot { Vertex* vertices; Scene* scene; uint atlas; uint sampler; };
+    struct WorldRoot { Vertex* vertices; Scene* scene; uint atlas; uint sampler; uint pad0; uint pad1; };
     GPU_ROOT(WorldRoot, root);
 
     struct Varyings {
@@ -1641,12 +1641,12 @@ fn main() {
         for m in meshes {
             if m.count == 0 { continue; }
             let root = ngfx::root(WorldRoot { vertices: ngfx::address(m.vertices), scene: scene_data,
-                                              atlas: atlas_index, sampler: sampler_index });
+                                              atlas: atlas_index, sampler: sampler_index, .. });
             ngfx::draw_indexed(root, m.indices, 4, m.count);
         }
         if fragments.len > 0 {
             ngfx::draw(ngfx::root(WorldRoot { vertices: fragment_data, scene: scene_data,
-                                              atlas: atlas_index, sampler: sampler_index }),
+                                              atlas: atlas_index, sampler: sampler_index, .. }),
                        fragments.len);
         }
         if hud_vertices.len > 0 {

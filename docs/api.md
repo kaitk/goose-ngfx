@@ -13,7 +13,7 @@ program, and [design.md](design.md) how it works and what it costs.
 ```goose
 import ngfx from "github.com/kaitk/goose-ngfx@v0.5.0";
 
-struct Root { vertices: u64, transform: ngfx::float4x4 }
+struct Root { vertices: u64, pad0: u64, transform: ngfx::float4x4 }
 
 let shaders = ngfx::slang_file("cube.slang");      // every entry point of one Slang module
 let pipeline = ngfx::pipeline(shaders);            // its vertex and fragment entry points
@@ -34,7 +34,10 @@ with `goose file.goose` or builds with `goose build file.goose`
   A module that doesn't compile aborts the program with slangc's message. Compile each
   module once, before the frame loop: it takes a fraction of a second.
 - **A draw or dispatch takes a root**: the GPU address of a struct the program fills,
-  usually with `root(value)` or `frame_data(bytes)` in this frame's memory. The shader
+  usually with `root(value)` or `frame_data(bytes)` in this frame's memory. A root is laid
+  out as a constant buffer: its size a multiple of 16 bytes, a `float4` or matrix on a
+  16-byte boundary and a `float2` on 8, with the padding spelled out on both sides
+  (NoGraphicsAPI's `docs/slang.md`; a literal fills it with `..`). The shader
   reads buffers through GPU addresses (`address(b)`), and textures and samplers through
   descriptor indices (`index(t)`, `storage_index(t, mip)`).
 - **Pipelines are made for the formats of the passes they draw in**, at their first draw

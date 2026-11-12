@@ -28,9 +28,9 @@ import gfx from "github.com/kaitk/goose_gfx@main";
 struct Vertex { pos: float3, normal: float3, color: u8[4] }
 
 // The draw's root, as the shader declares it: a pointer to the vertices and
-// two row-major matrices. C's layout puts the pointer first on its 8-byte
-// boundary and the matrices after it with no padding, as Goose packs them.
-struct Root { vertices: u64, model: ngfx::float4x4, view_proj: ngfx::float4x4 }
+// two row-major matrices. A root has a constant buffer's layout, so the matrices
+// start on a 16-byte boundary, after 8 bytes of padding named on both sides.
+struct Root { vertices: u64, pad0: u32, pad1: u32, model: ngfx::float4x4, view_proj: ngfx::float4x4 }
 
 // Four corners and two triangles per face, counterclockwise seen from
 // outside, which is what culling back faces keeps.
@@ -89,7 +89,7 @@ fn main() {
         #include <NoGraphicsAPI/shader.slang>
 
         struct Vertex { float3 pos; float3 normal; uint color; };
-        struct Root { Vertex* vertices; float4x4 model; float4x4 view_proj; };
+        struct Root { Vertex* vertices; uint pad0; uint pad1; float4x4 model; float4x4 view_proj; };
         GPU_ROOT(Root, root);
 
         struct Varyings {
@@ -142,7 +142,7 @@ fn main() {
         ngfx::bind(cube_pipeline);
         let root = ngfx::root(Root {
             vertices: ngfx::address(vertex_buffer), model: model,
-            view_proj: ngfx::mul(ngfx::perspective(0.8, aspect, 0.1, 20.0), view) });
+            view_proj: ngfx::mul(ngfx::perspective(0.8, aspect, 0.1, 20.0), view), .. });
         ngfx::draw_indexed(root, index_buffer, 2, indices.len);
         ngfx::end_pass();
         gfx::presented(ngfx::present());

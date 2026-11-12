@@ -712,7 +712,7 @@ extern fn barrier(before: i32, after: i32) = "ngfx_barrier";
 
 // The root of the layer's downsampling shader (native/ngfx_mips.slang).
 struct MipRoot { source: u32, target: u32, level: u32, width: u32, height: u32, source_width: u32,
-                 source_height: u32 }
+                 source_height: u32, pad0: u32 }
 
 // generate_mips' pipeline: the layer's downsampling shader
 // (native/ngfx_mips.slang), which takes a MipRoot and makes each texel of
@@ -741,7 +741,7 @@ fn generate_mips(t: Texture) {
         if level > 1 { barrier(COMPUTE_WRITE, COMPUTE_READ); }
         dispatch(root(MipRoot { source: index(t), target: storage_index(t, level), level: (level - 1) as u32,
                                 width: w as u32, height: h as u32, source_width: width as u32,
-                                source_height: height as u32 }),
+                                source_height: height as u32, pad0: 0 }),
                  (w + 7) / 8, (h + 7) / 8, 1);
         width = w;
         height = h;

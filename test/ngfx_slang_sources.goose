@@ -41,7 +41,7 @@ fn main() {
     let written = ngfx::slang("""
         #include <NoGraphicsAPI/shader.slang>
         #include "probe_common.slang"
-        struct Params { float4 tint; float gain; };
+        struct Params { float4 tint; float gain; uint pad0; uint pad1; uint pad2; };
         GPU_ROOT(Params, root);
         [shader("fragment")]
         float4 probe() : SV_Target0 { return root.tint * doubled(root.gain); }
@@ -53,7 +53,7 @@ fn main() {
     // The parts of a module are its lines in order: doubled() from a global
     // does what the include did.
     let parts = ngfx::slang(doubled_slang, """
-        struct Params { float4 tint; float gain; };
+        struct Params { float4 tint; float gain; uint pad0; uint pad1; uint pad2; };
         GPU_ROOT(Params, root);
         [shader("fragment")]
         float4 probe() : SV_Target0 { return root.tint * doubled(root.gain); }
@@ -70,7 +70,7 @@ fn main() {
     // Every entry point of a module, compute's with its numthreads.
     describe("three stages", ngfx::slang("""
         #include <NoGraphicsAPI/shader.slang>
-        struct Out { uint* values; };
+        struct Out { uint* values; uint pad0; uint pad1; };
         GPU_ROOT(Out, root);
         [shader("vertex")]
         float4 vs(uint id : SV_VertexID) : SV_Position { return float4(0.0, 0.0, 0.0, 1.0); }

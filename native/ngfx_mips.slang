@@ -15,6 +15,7 @@ struct MipRoot
     uint height;
     uint source_width;
     uint source_height;
+    uint pad0; // A root's size is a multiple of 16 bytes.
 };
 
 GPU_ROOT(MipRoot, root);

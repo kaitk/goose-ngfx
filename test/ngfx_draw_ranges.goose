@@ -8,7 +8,7 @@ import ngfx from "../";
 
 let W = 16;
 
-struct Quads { corners: u64, color: float4 }
+struct Quads { corners: u64, pad0: u32, pad1: u32, color: float4 }
 
 fn open_or_skip() -> bool {
     if ngfx::open_headless(W, W) { return true; }
@@ -38,7 +38,7 @@ fn main() {
     let index_buffer = ngfx::buffer(bytes_of(indices));
     let quad_shader = ngfx::slang("""
         #include <NoGraphicsAPI/shader.slang>
-        struct Quads { float2* corners; float4 color; };
+        struct Quads { float2* corners; uint pad0; uint pad1; float4 color; };
         GPU_ROOT(Quads, root);
         [shader("vertex")]
         float4 quadVertex(uint vertex_id : SV_VertexID) : SV_Position {
@@ -49,7 +49,7 @@ fn main() {
         """);
     let quads = ngfx::pipeline(quad_shader);
     let root = ngfx::root(Quads { corners: ngfx::address(corner_buffer),
-                                  color: float4 { 1.0, 1.0, 1.0, 1.0 } });
+                                  color: float4 { 1.0, 1.0, 1.0, 1.0 }, .. });
 
     let in_frame = ngfx::frame_range(bytes_of(indices));
     print("frame_range: ", in_frame.size, " bytes, aligned ", in_frame.address % 16 == 0);
@@ -61,7 +61,7 @@ fn main() {
 
     ngfx::present();
     let root2 = ngfx::root(Quads { corners: ngfx::address(corner_buffer),
-                                   color: float4 { 1.0, 1.0, 1.0, 1.0 } });
+                                   color: float4 { 1.0, 1.0, 1.0, 1.0 }, .. });
     ngfx::begin_screen(float4 { 0.0, 0.0, 0.0, 1.0 });
     ngfx::bind(quads);
     ngfx::draw_indexed(root2, ngfx::frame_range(bytes_of(indices)), 4, 6, 1, 6, 0, 0);

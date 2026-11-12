@@ -339,8 +339,13 @@ compares with the `extern` declarations in `ngfx.goose`.
 
 - **An entry point named like an MSL type fails on Metal only.** `half` compiles to SPIR-V,
   then breaks Xcode's Metal compiler; Slang doesn't rename it.
-- **Goose structs are packed; Slang structs have C layout.** A root spells C's padding
-  with `pad n`: a `u64` pointer on an 8-byte boundary, `float3` as 12 bytes aligned to 4.
+- **Goose structs are packed; a Slang root has a constant buffer's layout.** Since
+  NoGraphicsAPI's Metal backend reads roots from the `constant` address space (upstream,
+  2026-10-19), a root's size is a multiple of 16 bytes, a `float4` or matrix starts on a
+  16-byte boundary and a `float2` on 8, and there are no three-component vectors. Each
+  root names its padding as `padN` fields on both sides, which a Goose literal fills with
+  `..`. Data a root points to keeps C's layout: a `u64` pointer on an 8-byte boundary,
+  `float3` as 12 bytes aligned to 4.
 - **By value, a packed Goose struct stands in for a naturally aligned C one** when the
   bytes match and the struct is larger than 16 bytes or integer-only. A layout test of
   an earlier one-to-one binding checked this on arm64; on x64 Windows, ngfx's own structs

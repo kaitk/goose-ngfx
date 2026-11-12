@@ -14,7 +14,7 @@ let W = 64;
 
 // A rectangle's root, as the shader declares it: the unit square's corners,
 // the rectangle in clip space, its depth and its color.
-struct Rect { corners: u64, rect: float4, color: float4, depth: f32 }
+struct Rect { corners: u64, pad0: u32, pad1: u32, rect: float4, color: float4, depth: f32, pad2: u32, pad3: u32, pad4: u32 }
 // The instanced draw's: the corners and the instances.
 struct Instanced { corners: u64, instances: u64 }
 struct Instance { offset: float2, color: u8[4] }
@@ -43,7 +43,7 @@ fn count(px: u8[:], r: u8, g: u8, b: u8) -> i64 {
 fn rect(unit: ngfx::Buffer, idx: ngfx::Buffer, x0: f32, y0: f32, x1: f32, y1: f32, depth: f32,
         color: float4) {
     let root = ngfx::root(Rect { corners: ngfx::address(unit), rect: float4 { x0, y0, x1, y1 },
-                                 color: color, depth: depth });
+                                 color: color, depth: depth, .. });
     ngfx::draw_indexed(root, idx, 2, 6);
 }
 
@@ -58,7 +58,7 @@ fn main() {
     // by the root.
     let rect_shader = ngfx::slang("""
         #include <NoGraphicsAPI/shader.slang>
-        struct Rect { float2* corners; float4 rect; float4 color; float depth; };
+        struct Rect { float2* corners; uint pad0; uint pad1; float4 rect; float4 color; float depth; uint pad2; uint pad3; uint pad4; };
         GPU_ROOT(Rect, root);
         [shader("vertex")]
         float4 rectVertex(uint vertex_id : SV_VertexID) : SV_Position {
@@ -133,7 +133,7 @@ fn main() {
     let stored = ngfx::buffer(bytes_of(points));
     let points_shader = ngfx::slang("""
         #include <NoGraphicsAPI/shader.slang>
-        struct Points { float4* points; };
+        struct Points { float4* points; uint pad0; uint pad1; };
         GPU_ROOT(Points, root);
         [shader("vertex")]
         float4 pointsVertex(uint vertex_id : SV_VertexID) : SV_Position {

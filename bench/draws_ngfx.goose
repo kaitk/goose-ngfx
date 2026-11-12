@@ -16,7 +16,7 @@ import gfx from "github.com/kaitk/goose_gfx@main";
 
 // The draw's root, as the shader declares it: the corners, then the quad's
 // offset and size in clip space, then its color.
-struct Root { vertices: u64, place: float4, color: float4 }
+struct Root { vertices: u64, pad0: u32, pad1: u32, place: float4, color: float4 }
 
 fn main() {
     var frames = 100;
@@ -96,7 +96,7 @@ fn main() {
             let root = ngfx::root(Root {
                 vertices: address,
                 place: float4 { x * cell - 1.0, y * cell - 1.0, cell * 0.8, cell * 0.8 },
-                color: float4 { x / side, y / side, shift, 1.0 } });
+                color: float4 { x / side, y / side, shift, 1.0 }, .. });
             if indexed { ngfx::draw_indexed(root, indices, 2, 6); }
             else { ngfx::draw(root, 6); }
         }

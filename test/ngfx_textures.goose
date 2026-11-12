@@ -11,9 +11,9 @@ import ngfx from "../";
 
 // The roots of the shaders below: a texture and a sampler by index, and the
 // mip level or the depth coordinate to sample at.
-struct Sample { texture: u32, sampler: u32, at: f32 }
+struct Sample { texture: u32, sampler: u32, at: f32, pad0: u32 }
 // The depth test's: a rectangle in clip space, its color and its depth.
-struct Layer { rect: float4, color: float4, depth: f32 }
+struct Layer { rect: float4, color: float4, depth: f32, pad0: u32, pad1: u32, pad2: u32 }
 
 fn open_or_skip() -> bool {
     if ngfx::open_headless(64, 64) { return true; }
@@ -42,7 +42,7 @@ fn same(a: u8[:], b: u8[:]) -> bool {
 // texture coordinates run 0 to 1 over the target, (0, 0) at the top left.
 let full = """
     #include <NoGraphicsAPI/shader.slang>
-    struct Sample { uint texture; uint sampler; float at; };
+    struct Sample { uint texture; uint sampler; float at; uint pad0; };
     GPU_ROOT(Sample, root);
     struct Varyings { float4 position : SV_Position; float2 uv : TEXCOORD0; };
     [shader("vertex")]
@@ -83,7 +83,7 @@ fn main() {
     let copy = ngfx::pipeline(sample2d);
     ngfx::begin_pass(target, ngfx::Texture { 0 }, float4 { 0.0, 0.0, 0.0, 0.0 });
     ngfx::bind(copy);
-    ngfx::draw(ngfx::root(Sample { texture: ngfx::index(tex), sampler: ngfx::index(nearest), at: 0.0 }), 3);
+    ngfx::draw(ngfx::root(Sample { texture: ngfx::index(tex), sampler: ngfx::index(nearest), at: 0.0, .. }), 3);
     ngfx::end_pass();
     print("2d: sampled as written ", same(ngfx::read_pixels(target), patched));
 
@@ -110,7 +110,7 @@ fn main() {
     ngfx::begin_pass(one, ngfx::Texture { 0 }, float4 { 0.0, 0.0, 0.0, 0.0 });
     ngfx::bind(copy);
     let linear = ngfx::sampler(ngfx::LINEAR, ngfx::CLAMP);
-    ngfx::draw(ngfx::root(Sample { texture: ngfx::index(mipped), sampler: ngfx::index(linear), at: 3.0 }), 3);
+    ngfx::draw(ngfx::root(Sample { texture: ngfx::index(mipped), sampler: ngfx::index(linear), at: 3.0, .. }), 3);
     ngfx::end_pass();
     let sampled = ngfx::read_pixels(one);
     // Averaging rounds either way, depending on the GPU.
@@ -138,7 +138,7 @@ fn main() {
         ngfx::begin_pass(slice_target, ngfx::Texture { 0 }, float4 { 0.0, 0.0, 0.0, 0.0 });
         ngfx::bind(slicer);
         ngfx::draw(ngfx::root(Sample { texture: ngfx::index(volume), sampler: ngfx::index(nearest),
-                                       at: (z + 0.5) / 2.0 }), 3);
+                                       at: (z + 0.5) / 2.0, .. }), 3);
         ngfx::end_pass();
         print("3d: slice ", z, " sampled as written ",
               same(ngfx::read_pixels(slice_target), vol[z * 16..z * 16 + 16]));
@@ -169,7 +169,7 @@ fn main() {
     let axes = ngfx::render_target(6, 1, ngfx::RGBA8);
     ngfx::begin_pass(axes, ngfx::Texture { 0 }, float4 { 0.0, 0.0, 0.0, 0.0 });
     ngfx::bind(ngfx::pipeline(along_axes));
-    ngfx::draw(ngfx::root(Sample { texture: ngfx::index(sky), sampler: ngfx::index(nearest), at: 0.0 }), 3);
+    ngfx::draw(ngfx::root(Sample { texture: ngfx::index(sky), sampler: ngfx::index(nearest), at: 0.0, .. }), 3);
     ngfx::end_pass();
     print("cube: +x -x +y -y +z -z ", texels(ngfx::read_pixels(axes)));
 
@@ -187,7 +187,7 @@ fn main() {
     let row = ngfx::render_target(3, 1, ngfx::RGBA8);
     ngfx::begin_pass(row, ngfx::Texture { 0 }, float4 { 0.0, 0.0, 0.0, 0.0 });
     ngfx::bind(ngfx::pipeline(by_layer));
-    ngfx::draw(ngfx::root(Sample { texture: ngfx::index(layered), sampler: ngfx::index(nearest), at: 0.0 }), 3);
+    ngfx::draw(ngfx::root(Sample { texture: ngfx::index(layered), sampler: ngfx::index(nearest), at: 0.0, .. }), 3);
     ngfx::end_pass();
     print("array: layers 0 1 2 ", texels(ngfx::read_pixels(row)));
 
@@ -213,7 +213,7 @@ fn main() {
     // target, red behind it, and blue in front over the left half.
     let layers = ngfx::slang("""
         #include <NoGraphicsAPI/shader.slang>
-        struct Layer { float4 rect; float4 color; float depth; };
+        struct Layer { float4 rect; float4 color; float depth; uint pad0; uint pad1; uint pad2; };
         GPU_ROOT(Layer, root);
         static const float2 corners[6] = { float2(0.0, 0.0), float2(1.0, 0.0), float2(1.0, 1.0),
                                            float2(0.0, 0.0), float2(1.0, 1.0), float2(0.0, 1.0) };
@@ -233,11 +233,11 @@ fn main() {
         ngfx::begin_pass(depth_color, zbuffer, float4 { 0.0, 0.0, 0.0, 1.0 });
         ngfx::bind(tested);
         ngfx::draw(ngfx::root(Layer { rect: float4 { -1.0, -1.0, 1.0, 1.0 }, color: float4 { 0.0, 1.0, 0.0, 1.0 },
-                                      depth: 0.5 }), 6);
+                                      depth: 0.5, .. }), 6);
         ngfx::draw(ngfx::root(Layer { rect: float4 { -1.0, -1.0, 1.0, 1.0 }, color: float4 { 1.0, 0.0, 0.0, 1.0 },
-                                      depth: 0.75 }), 6);
+                                      depth: 0.75, .. }), 6);
         ngfx::draw(ngfx::root(Layer { rect: float4 { -1.0, -1.0, 0.0, 1.0 }, color: float4 { 0.0, 0.0, 1.0, 1.0 },
-                                      depth: 0.25 }), 6);
+                                      depth: 0.25, .. }), 6);
         ngfx::end_pass();
         print("depth ", depth_names[f], ": ", texels(ngfx::read_pixels(depth_color)));
         ngfx::release(zbuffer);

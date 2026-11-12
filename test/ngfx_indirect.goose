@@ -9,9 +9,9 @@ import ngfx from "../";
 
 let W = 16;
 
-struct Args { draw: u64, indexed: u64, groups: u64 }
-struct Quad { corners: u64, color: float4 }
-struct Count { counter: u64 }
+struct Args { draw: u64, indexed: u64, groups: u64, pad0: u32, pad1: u32 }
+struct Quad { corners: u64, pad0: u32, pad1: u32, color: float4 }
+struct Count { counter: u64, pad0: u32, pad1: u32 }
 
 fn open_or_skip() -> bool {
     if ngfx::open_headless(W, W) { return true; }
@@ -23,7 +23,7 @@ fn main() {
     guard open_or_skip() else { return; }
     let write_args = ngfx::slang("""
         #include <NoGraphicsAPI/shader.slang>
-        struct Args { uint* draw; uint* indexed; uint* groups; };
+        struct Args { uint* draw; uint* indexed; uint* groups; uint pad0; uint pad1; };
         GPU_ROOT(Args, root);
         // The left quad's 6 corners; the right quad's 6 indices from 6;
         // 3 groups.
@@ -37,14 +37,14 @@ fn main() {
         """);
     let count = ngfx::slang("""
         #include <NoGraphicsAPI/shader.slang>
-        struct Count { uint* counter; };
+        struct Count { uint* counter; uint pad0; uint pad1; };
         GPU_ROOT(Count, root);
         [shader("compute")] [numthreads(4, 1, 1)]
         void count() { InterlockedAdd(root.counter[0], 1u); }
         """);
     let quad = ngfx::slang("""
         #include <NoGraphicsAPI/shader.slang>
-        struct Quad { float2* corners; float4 color; };
+        struct Quad { float2* corners; uint pad0; uint pad1; float4 color; };
         GPU_ROOT(Quad, root);
         [shader("vertex")]
         float4 quadVertex(uint vertex_id : SV_VertexID) : SV_Position {
@@ -73,21 +73,21 @@ fn main() {
     ngfx::bind(ngfx::compute_pipeline(write_args));
     ngfx::dispatch(ngfx::root(Args { draw: ngfx::address(draw_args),
                                      indexed: ngfx::address(indexed_args),
-                                     groups: ngfx::address(group_args) }), 1, 1, 1);
+                                     groups: ngfx::address(group_args), .. }), 1, 1, 1);
     ngfx::barrier(ngfx::COMPUTE_WRITE, ngfx::STAGE_INDIRECT | ngfx::ACCESS_INDIRECT_READ);
 
     ngfx::begin_screen(float4 { 0.0, 0.0, 0.0, 1.0 });
     ngfx::bind(ngfx::pipeline(quad));
     ngfx::draw_indirect(ngfx::root(Quad { corners: ngfx::address(left_buffer),
-                                          color: float4 { 1.0, 0.0, 0.0, 1.0 } }),
+                                          color: float4 { 1.0, 0.0, 0.0, 1.0 }, .. }),
                         ngfx::address(draw_args));
     ngfx::draw_indexed_indirect(ngfx::root(Quad { corners: ngfx::address(corner_buffer),
-                                                  color: float4 { 0.0, 1.0, 0.0, 1.0 } }),
+                                                  color: float4 { 0.0, 1.0, 0.0, 1.0 }, .. }),
                                 index_buffer, 2, ngfx::address(indexed_args));
     ngfx::end_pass();
 
     ngfx::bind(ngfx::compute_pipeline(count));
-    ngfx::dispatch_indirect(ngfx::root(Count { counter: ngfx::address(counter) }),
+    ngfx::dispatch_indirect(ngfx::root(Count { counter: ngfx::address(counter), .. }),
                             ngfx::address(group_args));
 
     let px = ngfx::read_pixels(ngfx::screen());

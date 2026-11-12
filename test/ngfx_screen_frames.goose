@@ -7,7 +7,7 @@ import ngfx from "../";
 
 let W = 16;
 
-struct Fill { color: float4, depth: f32 }
+struct Fill { color: float4, depth: f32, pad0: u32, pad1: u32, pad2: u32 }
 
 fn open_or_skip() -> bool {
     if ngfx::open_headless(W, W) { return true; }
@@ -27,7 +27,7 @@ fn main() {
     let depth = ngfx::screen_depth();
     let fill_shader = ngfx::slang("""
         #include <NoGraphicsAPI/shader.slang>
-        struct Fill { float4 color; float depth; };
+        struct Fill { float4 color; float depth; uint pad0; uint pad1; uint pad2; };
         GPU_ROOT(Fill, root);
         [shader("vertex")]
         float4 fillVertex(uint vertex_id : SV_VertexID) : SV_Position {
@@ -57,12 +57,12 @@ fn main() {
     d.clear_depth = false;
     ngfx::begin_pass(d);
     ngfx::bind(fill);
-    ngfx::draw(ngfx::root(Fill { color: float4 { 0.0, 1.0, 0.0, 1.0 }, depth: 0.5 }), 3);
+    ngfx::draw(ngfx::root(Fill { color: float4 { 0.0, 1.0, 0.0, 1.0 }, depth: 0.5, .. }), 3);
     ngfx::end_pass();
     print("loaded, drawn behind the last frame's depth: ", middle());
     ngfx::begin_pass(d);
     ngfx::bind(fill);
-    ngfx::draw(ngfx::root(Fill { color: float4 { 0.0, 0.0, 1.0, 1.0 }, depth: 0.1 }), 3);
+    ngfx::draw(ngfx::root(Fill { color: float4 { 0.0, 0.0, 1.0, 1.0 }, depth: 0.1, .. }), 3);
     ngfx::end_pass();
     print("and in front of it: ", middle());
 

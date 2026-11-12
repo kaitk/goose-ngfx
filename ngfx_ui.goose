@@ -34,13 +34,13 @@ var renderer = Renderer { 0, ngfx::Pipeline { 0 }, ngfx::Sampler { 0 }, false };
 // The root of the draw commands with one texture, as the shader declares
 // it: the frame's vertices, the texture and the sampler, and the target's
 // size.
-struct Root { vertices: u64, texture: u32, sampler: u32, size: float2 }
+struct Root { vertices: u64, texture: u32, sampler: u32, size: float2, pad0: u32, pad1: u32 }
 
 let shader = """
     #include <NoGraphicsAPI/shader.slang>
 
     struct Vertex { float2 pos; float2 uv; uint color; };
-    struct Root { Vertex* vertices; uint texture; uint sampler; float2 size; };
+    struct Root { Vertex* vertices; uint texture; uint sampler; float2 size; uint pad0; uint pad1; };
     GPU_ROOT(Root, root);
 
     struct Varyings {
@@ -145,7 +145,7 @@ fn render(c: ui::Context, target: ngfx::Texture, config: ui::ConvertConfig) {
             if root == 0 || d.texture != texture {
                 texture = d.texture;
                 root = ngfx::root(Root { vertices: vertices, texture: ngfx::index(ngfx::Texture { texture }),
-                                         sampler: sampler, size: size });
+                                         sampler: sampler, size: size, .. });
             }
             ngfx::draw_indexed(root, indices, 4, d.elem_count, 1, first, 0, 0);
         }

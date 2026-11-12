@@ -11,10 +11,10 @@ import os;
 import ngfx from "../";
 
 // The roots, as the shaders declare them.
-struct Scale { xs: u64, ys: u64, k: f32, count: u32 }
-struct Pattern { whites: u64, board: u32 }
-struct SumRows { sums: u64, board: u32 }
-struct Sample { board: u32, sampler: u32 }
+struct Scale { xs: u64, ys: u64, k: f32, count: u32, pad0: u32, pad1: u32 }
+struct Pattern { whites: u64, board: u32, pad0: u32 }
+struct SumRows { sums: u64, board: u32, pad0: u32 }
+struct Sample { board: u32, sampler: u32, pad0: u32, pad1: u32 }
 
 fn open_or_skip() -> bool {
     if ngfx::open_headless(16, 16) { return true; }
@@ -28,7 +28,7 @@ fn main() {
     // ys[i] = xs[i] * k + i over 200 of a 256-float buffer, in groups of 64.
     let scale = ngfx::slang("""
         #include <NoGraphicsAPI/shader.slang>
-        struct Scale { float* xs; float* ys; float k; uint count; };
+        struct Scale { float* xs; float* ys; float k; uint count; uint pad0; uint pad1; };
         GPU_ROOT(Scale, root);
         [shader("compute")] [numthreads(64, 1, 1)]
         void scale(uint3 id : SV_DispatchThreadID) {
@@ -42,7 +42,7 @@ fn main() {
     let output = ngfx::buffer(256 * 4, "");
     ngfx::bind(ngfx::compute_pipeline(scale));
     ngfx::dispatch(ngfx::root(Scale { xs: ngfx::address(input), ys: ngfx::address(output), k: 4.0,
-                                      count: 200 }), 4, 1, 1);
+                                      count: 200, .. }), 4, 1, 1);
     var ys: f32[>..] = [];
     ngfx::read_buffer(output, ys, 256);
     var right = 0;
@@ -56,7 +56,7 @@ fn main() {
     // white texels through an atomic counter.
     let pattern = ngfx::slang("""
         #include <NoGraphicsAPI/shader.slang>
-        struct Pattern { uint* whites; uint board; };
+        struct Pattern { uint* whites; uint board; uint pad0; };
         GPU_ROOT(Pattern, root);
         [shader("compute")] [numthreads(8, 8, 1)]
         void pattern(uint3 id : SV_DispatchThreadID) {
@@ -71,7 +71,7 @@ fn main() {
     let counter = ngfx::buffer(4, "");
     ngfx::bind(ngfx::compute_pipeline(pattern));
     ngfx::dispatch(ngfx::root(Pattern { whites: ngfx::address(counter),
-                                        board: ngfx::storage_index(board) }), 2, 2, 1);
+                                        board: ngfx::storage_index(board), .. }), 2, 2, 1);
     var whites: u32[>..] = [];
     ngfx::read_buffer(counter, whites, 1);
     // The board is sampled by a pass and read by another dispatch below.
@@ -85,7 +85,7 @@ fn main() {
     // triangle covering the target.
     let sample_board = ngfx::slang("""
         #include <NoGraphicsAPI/shader.slang>
-        struct Sample { uint board; uint sampler; };
+        struct Sample { uint board; uint sampler; uint pad0; uint pad1; };
         GPU_ROOT(Sample, root);
         struct Varyings { float4 position : SV_Position; float2 uv : TEXCOORD0; };
         [shader("vertex")]
@@ -106,7 +106,7 @@ fn main() {
     let copy = ngfx::render_target(16, 16, ngfx::RGBA8);
     ngfx::begin_pass(copy, ngfx::Texture { 0 }, float4 { 0.5, 0.5, 0.5, 1.0 });
     ngfx::bind(ngfx::pipeline(sample_board));
-    ngfx::draw(ngfx::root(Sample { board: ngfx::index(board), sampler: ngfx::index(nearest) }), 3);
+    ngfx::draw(ngfx::root(Sample { board: ngfx::index(board), sampler: ngfx::index(nearest), .. }), 3);
     ngfx::end_pass();
     let copied = ngfx::read_pixels(copy);
     var same = copied.len == px.len;
@@ -117,7 +117,7 @@ fn main() {
     // red channel.
     let sum_rows = ngfx::slang("""
         #include <NoGraphicsAPI/shader.slang>
-        struct SumRows { float* sums; uint board; };
+        struct SumRows { float* sums; uint board; uint pad0; };
         GPU_ROOT(SumRows, root);
         [shader("compute")] [numthreads(1, 1, 1)]
         void sumRows(uint3 id : SV_DispatchThreadID) {
@@ -130,7 +130,7 @@ fn main() {
         """);
     let rows = ngfx::buffer(16 * 4, "");
     ngfx::bind(ngfx::compute_pipeline(sum_rows));
-    ngfx::dispatch(ngfx::root(SumRows { sums: ngfx::address(rows), board: ngfx::index(board) }),
+    ngfx::dispatch(ngfx::root(SumRows { sums: ngfx::address(rows), board: ngfx::index(board), .. }),
                    16, 1, 1);
     var sums: f32[>..] = [];
     ngfx::read_buffer(rows, sums, 16);

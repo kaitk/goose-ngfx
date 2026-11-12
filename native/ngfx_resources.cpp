@@ -154,7 +154,7 @@ RenderView* render_view(TextureSlot* s, uint32 mip, uint32 slice)
 // in a heap of its own when it takes more than half of one; `chunk` says
 // which, for unplace_texture. Texture memory then costs what the textures
 // take, not a fixed block made at open.
-PlacedTexture place_texture(CommandBuffer* setup, const TextureDesc& desc, int32& chunk)
+PlacedTexture place_texture(const TextureDesc& desc, int32& chunk)
 {
     const SizeAlign need = get_texture_size_align(g.device, desc);
     const bool alone = need.size > texture_chunk_size / 2;
@@ -163,7 +163,7 @@ PlacedTexture place_texture(CommandBuffer* setup, const TextureDesc& desc, int32
         for (size_t i = 0; i < g.texture_allocators.size(); ++i)
         {
             if (!g.texture_allocators[i] || g.texture_alone[i]) continue;
-            const PlacedTexture p = g.texture_allocators[i]->allocate(setup, desc);
+            const PlacedTexture p = g.texture_allocators[i]->allocate(desc);
             if (p.texture)
             {
                 chunk = int32(i);
@@ -181,7 +181,7 @@ PlacedTexture place_texture(CommandBuffer* setup, const TextureDesc& desc, int32
     const TextureHeap heap = create_texture_heap(g.device, size);
     if (!heap.owner) return {};
     TextureAllocator* a = new TextureAllocator(g.device, heap, alone ? 1 : texture_chunk_textures);
-    const PlacedTexture p = a->allocate(setup, desc);
+    const PlacedTexture p = a->allocate(desc);
     if (!p.texture)
     {
         delete a;
@@ -286,7 +286,8 @@ bool create_texture(const ngfx_texture_desc& in, uint32* id, TextureSlot** out)
     // can reach it, as examples/cube submits its texture's before uploading.
     CommandBuffer* setup = begin_setup();
     int32 chunk = -1;
-    const PlacedTexture placed = place_texture(setup, nd, chunk);
+    const PlacedTexture placed = place_texture(nd, chunk);
+    if (placed.texture) initialize_texture(setup, placed.texture);
     end_setup(setup);
     if (!placed.texture) return ngfx_fail("out of texture memory for a %d x %d texture", d.width, d.height);
 

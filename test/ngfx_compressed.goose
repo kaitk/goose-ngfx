@@ -7,7 +7,7 @@ import vec;
 import os;
 import ngfx from "../";
 
-struct Sample { texture: u32, sampler: u32, at: f32 }
+struct Sample { texture: u32, sampler: u32, at: f32, pad0: u32 }
 
 let colors: u8[4][4] = [[255, 0, 0, 255], [0, 255, 0, 255], [0, 0, 255, 255], [255, 255, 255, 255]];
 
@@ -42,7 +42,7 @@ fn main() {
     }
     let shader = ngfx::slang("""
         #include <NoGraphicsAPI/shader.slang>
-        struct Sample { uint texture; uint sampler; float at; };
+        struct Sample { uint texture; uint sampler; float at; uint pad0; };
         GPU_ROOT(Sample, root);
         struct Varyings { float4 position : SV_Position; float2 uv : TEXCOORD0; };
         [shader("vertex")]
@@ -83,7 +83,7 @@ fn main() {
         ngfx::update_texture(tex, ngfx::Region { x: edge, y: edge, w: size - edge, h: size - edge }, black);
         ngfx::begin_pass(target, ngfx::Texture { 0 }, float4 { 0.0, 0.0, 0.0, 0.0 });
         ngfx::bind(copy);
-        ngfx::draw(ngfx::root(Sample { texture: ngfx::index(tex), sampler: ngfx::index(nearest), at: 0.0 }), 3);
+        ngfx::draw(ngfx::root(Sample { texture: ngfx::index(tex), sampler: ngfx::index(nearest), at: 0.0, .. }), 3);
         ngfx::end_pass();
         let px = ngfx::read_pixels(target);
         for i in 4 {
