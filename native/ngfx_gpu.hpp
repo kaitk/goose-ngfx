@@ -179,10 +179,11 @@ struct Targets
     Format color[4] = {Format::undefined, Format::undefined, Format::undefined, Format::undefined};
     Format depth = Format::undefined;
     Format stencil = Format::undefined;
+    uint32 samples = 1;
 
     bool operator==(const Targets& o) const
     {
-        if (count != o.count || depth != o.depth || stencil != o.stencil) return false;
+        if (count != o.count || depth != o.depth || stencil != o.stencil || samples != o.samples) return false;
         for (uint32 i = 0; i < count; ++i)
             if (color[i] != o.color[i]) return false;
         return true;

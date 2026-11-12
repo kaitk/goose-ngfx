@@ -32,6 +32,21 @@ struct Vertex { pos: float3, normal: float3, color: u8[4] }
 // start on a 16-byte boundary, after 8 bytes of padding named on both sides.
 struct Root { vertices: u64, pad0: u32, pad1: u32, model: ngfx::float4x4, view_proj: ngfx::float4x4 }
 
+// 4x multisampling: the cube is drawn into TRANSIENT 4x color and depth
+// targets, which on Apple's GPUs live in tile memory alone, and resolved into
+// the screen as the pass ends. They follow the screen's size and format.
+fn msaa_pass(size: int2) -> ngfx::PassDesc {
+    let format = ngfx::texture_info(ngfx::screen()).format;
+    var d = ngfx::PassDesc {
+        depth: ngfx::texture(ngfx::TextureDesc { format: ngfx::DEPTH, usage: ngfx::DEPTH_TARGET | ngfx::TRANSIENT,
+                                                 width: size.x, height: size.y, samples: 4 }),
+        color_value: float4 { 0.1, 0.12, 0.16, 1.0 } };
+    d.color[0] = ngfx::texture(ngfx::TextureDesc { format: format, usage: ngfx::COLOR_TARGET | ngfx::TRANSIENT,
+                                                   width: size.x, height: size.y, samples: 4 });
+    d.resolve[0] = ngfx::screen();
+    d
+}
+
 // Four corners and two triangles per face, counterclockwise seen from
 // outside, which is what culling back faces keeps.
 fn cube(verts: Vertex[>..]&, indices: u16[>..]&) {
@@ -116,8 +131,10 @@ fn main() {
         """);
     let cube_pipeline = ngfx::pipeline(cube_shader, ngfx::PipelineDesc {
         cull: ngfx::CULL_BACK, depth_test: true, depth_write: true });
-    // Made for the screen now, rather than at the first frame's draw.
-    ngfx::prepare_screen(cube_pipeline);
+    var size = ngfx::screen_size();
+    var pass = msaa_pass(size);
+    // Made for the pass's targets now, rather than at the first frame's draw.
+    ngfx::prepare(cube_pipeline, pass);
 
     var yaw: f32 = 0.6;
     var pitch: f32 = 0.5;
@@ -132,13 +149,18 @@ fn main() {
 
         // The screen follows the window's size, and the projection its shape.
         ngfx::resize(gfx::screen_size());
-        let size = ngfx::screen_size();
+        if ngfx::screen_size().x != size.x || ngfx::screen_size().y != size.y {
+            ngfx::release(pass.color[0]);
+            ngfx::release(pass.depth);
+            size = ngfx::screen_size();
+            pass = msaa_pass(size);
+        }
         let aspect = size.x as f32 / size.y;
         let model = ngfx::mul(ngfx::rotate(float3 { 1.0, 0.0, 0.0 }, pitch),
                               ngfx::rotate(float3 { 0.0, 1.0, 0.0 }, yaw));
         let view = ngfx::look_at(float3 { 0.0, 0.4, 3.0 }, float3_0, float3 { 0.0, 1.0, 0.0 });
 
-        ngfx::begin_screen(float4 { 0.1, 0.12, 0.16, 1.0 });
+        ngfx::begin_pass(pass);
         ngfx::bind(cube_pipeline);
         let root = ngfx::root(Root {
             vertices: ngfx::address(vertex_buffer), model: model,

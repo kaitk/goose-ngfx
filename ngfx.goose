@@ -96,6 +96,11 @@ let SAMPLED: i32 = 1;
 let COLOR_TARGET: i32 = 2;
 let DEPTH_TARGET: i32 = 4;
 let STORAGE: i32 = 8;                 // read and written by shaders, through storage_index
+// A target whose contents live only within a pass, with COLOR_TARGET or
+// DEPTH_TARGET alone: cleared at the pass's start, never stored, sampled, or
+// read back. Metal keeps it in tile memory (memoryless), with no memory of
+// its own; Vulkan marks it transient. A multisampled target is usually one.
+let TRANSIENT: i32 = 16;
 
 // Texture formats. DEPTH is DEPTH32F.
 let RGBA8: i32 = 1;
@@ -210,6 +215,7 @@ struct TextureDesc {
     height: i32,
     depth: i32 = 1,         // a 3D texture's depth, or an array's layers
     mips: i32 = 1,          // 0: the full chain
+    samples: i32 = 1,       // 4: a multisampled 2D target, resolved by a pass
 }
 
 // Part of one mip of one layer of a texture; w == 0 is the whole mip.
@@ -258,6 +264,9 @@ struct PassDesc {
     clear_depth: bool = true,
     color_value: float4 = float4 { 0.0, 0.0, 0.0, 1.0 },
     depth_value: f32 = 1.0,
+    // Each multisampled color target's single-sample image of the same format
+    // and size, which the pass averages it into as it ends.
+    resolve: Texture[4] = [Texture { 0 }; 4],
 }
 
 // --- device and frames ------------------------------------------------------

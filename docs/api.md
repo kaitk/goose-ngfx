@@ -42,6 +42,11 @@ with `goose file.goose` or builds with `goose build file.goose`
   descriptor indices (`index(t)`, `storage_index(t, mip)`).
 - **Pipelines are made for the formats of the passes they draw in**, at their first draw
   into each, or before it with `prepare(pipeline, pass)` or `prepare_screen(pipeline)`.
+- **Multisampling is a pass's**: 4x targets (`TextureDesc.samples: 4`), usually
+  `TRANSIENT`, so they are cleared, never stored, and on Metal memoryless; the pass
+  averages each into its `resolve` texture as it ends, and a pipeline is made for the
+  sample count as for the formats (`samples/cube.goose`). The names are gfx's: its
+  `samples` and `PassDesc.resolve` work the same way.
 - **`draw_indexed` takes its indices as a `Range`**, an address and a size: a buffer's
   (`range(b)`, or the buffer itself) or this frame's memory (`frame_range(bytes)`).
 - **Indirect draws and dispatches** (`draw_indirect`, `draw_indexed_indirect`,

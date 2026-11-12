@@ -63,6 +63,7 @@ PSO* pipeline_for(PipelineSlot* p, const Targets& t)
         .rasterization = {.cull = cull_mode(p->desc.cull, p->desc.clockwise != 0),
                           .depth_bias_constant = p->desc.depth_bias,
                           .depth_bias_slope = p->desc.depth_bias_slope},
+        .sample_count = t.samples,
     });
     if (!pso)
     {
@@ -87,10 +88,19 @@ bool targets_of(const ngfx_pass_desc& d, Targets* out, const char* what)
         if (!s) return false;
         if (!has(s->desc.usage, TextureUsage::color_attachment))
             return ngfx_misuse("%s: a color target made without COLOR_TARGET usage", what);
+        if (i && s->desc.sample_count != t.samples) return ngfx_misuse("%s: color targets of different sample counts", what);
         t.color[i] = s->desc.format;
+        t.samples = s->desc.sample_count;
         t.count = i + 1;
         width = s->desc.extent.x;
         height = s->desc.extent.y;
+        if (!d.resolve[i].id) continue;
+        TextureSlot* r = g.textures.get(d.resolve[i].id);
+        if (!r) return false;
+        if (s->desc.sample_count == 1) return ngfx_misuse("%s: a resolve for a color target of one sample", what);
+        if (r->desc.sample_count != 1 || !has(r->desc.usage, TextureUsage::color_attachment) || r->desc.format != s->desc.format ||
+            r->desc.extent.x != width || r->desc.extent.y != height)
+            return ngfx_misuse("%s: a resolve is a COLOR_TARGET of one sample, with its target's format and size", what);
     }
     if (d.depth.id)
     {
@@ -98,7 +108,9 @@ bool targets_of(const ngfx_pass_desc& d, Targets* out, const char* what)
         if (!s) return false;
         if (!has(s->desc.usage, TextureUsage::depth_stencil_attachment))
             return ngfx_misuse("%s: a depth target made without DEPTH_TARGET usage", what);
+        if (t.count && s->desc.sample_count != t.samples) return ngfx_misuse("%s: a depth target of another sample count", what);
         t.depth = s->desc.format;
+        t.samples = s->desc.sample_count;
         if (get_texture_format_info(s->desc.format).stencil) t.stencil = s->desc.format;
         if (t.count && (s->desc.extent.x != width || s->desc.extent.y != height))
             return ngfx_misuse("%s: a depth target of %u x %u for color targets of %u x %u", what, s->desc.extent.x,
@@ -400,8 +412,19 @@ uint8_t ngfx_begin_pass(const ngfx_pass_desc* desc)
         const bool window = g.windowed && d.color[i].id == g.screen.id;
         RenderView* view = window ? screen_view() : render_view(s, uint32(d.mip), uint32(d.layer));
         if (!view) return ngfx_fail("begin_pass: creating a render view");
+        const bool transient = has(s->desc.usage, TextureUsage::transient);
+        if (transient && !d.clear_color) return ngfx_misuse("begin_pass: a TRANSIENT target is cleared, never loaded");
+        RenderView* resolve = nullptr;
+        if (d.resolve[i].id)
+        {
+            const bool window_resolve = g.windowed && d.resolve[i].id == g.screen.id;
+            resolve = window_resolve ? screen_view() : render_view(texture_slot(d.resolve[i]), uint32(d.mip), uint32(d.layer));
+            if (!resolve) return ngfx_fail("begin_pass: creating a render view");
+        }
         colors[i] = {.render_view = view, .load = d.clear_color ? LoadOp::clear : LoadOp::load,
-                     .clear = {.x = d.color_value.x, .y = d.color_value.y, .z = d.color_value.z, .w = d.color_value.w}};
+                     .store = transient ? StoreOp::discard : StoreOp::store,
+                     .clear = {.x = d.color_value.x, .y = d.color_value.y, .z = d.color_value.z, .w = d.color_value.w},
+                     .resolve_view = resolve};
         width = s->desc.extent.x;
         height = s->desc.extent.y;
     }
@@ -412,9 +435,12 @@ uint8_t ngfx_begin_pass(const ngfx_pass_desc* desc)
         TextureSlot* s = texture_slot(d.depth);
         RenderView* view = render_view(s, 0, 0);
         if (!view) return ngfx_fail("begin_pass: creating a render view");
+        const bool transient = has(s->desc.usage, TextureUsage::transient);
+        if (transient && !d.clear_depth) return ngfx_misuse("begin_pass: a TRANSIENT target is cleared, never loaded");
         const LoadOp load = d.clear_depth ? LoadOp::clear : LoadOp::load;
-        depth = {.render_view = view, .load = load, .clear = d.depth_value};
-        if (t.stencil != Format::undefined) stencil = {.render_view = view, .load = load};
+        const StoreOp store = transient ? StoreOp::discard : StoreOp::store;
+        depth = {.render_view = view, .load = load, .store = store, .clear = d.depth_value};
+        if (t.stencil != Format::undefined) stencil = {.render_view = view, .load = load, .store = store};
     }
     CommandBuffer* commands = frame_commands();
     if (g.full_sync) full_sync_barrier(commands);
@@ -428,9 +454,11 @@ uint8_t ngfx_begin_pass(const ngfx_pass_desc* desc)
         barrier(commands, Stage::vertex, Access::none, Stage::vertex | Stage::index_input, Access::none);
     // The barriers whose two sides the module sees: the targets, named here
     // and in earlier passes. What shaders read is the program's to order.
-    uint32 targets[5];
+    uint32 targets[9];
     uint32 target_count = 0;
     for (uint32 i = 0; i < t.count; ++i) targets[target_count++] = d.color[i].id;
+    for (uint32 i = 0; i < t.count; ++i)
+        if (d.resolve[i].id) targets[target_count++] = d.resolve[i].id;
     if (d.depth.id) targets[target_count++] = d.depth.id;
     bool reused = false, fresh = true;
     for (uint32 i = 0; i < target_count; ++i)

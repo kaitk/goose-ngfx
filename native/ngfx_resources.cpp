@@ -20,9 +20,11 @@ bool is_compressed(Format f) { return get_texture_format_info(f).block_extent.x 
 
 // Every color texture can be updated and read back, as gfx's can. Depth
 // can be neither, and both backends refuse transfer usage on depth/stencil.
-TextureUsage usage_of(uint32 usage, bool depth)
+TextureUsage usage_of(uint32 usage, bool depth, bool multisampled)
 {
-    TextureUsage nu = depth ? TextureUsage::none : TextureUsage::transfer_source | TextureUsage::transfer_destination;
+    TextureUsage nu = depth || multisampled || (usage & NGFX_TRANSIENT) ? TextureUsage::none
+                                                                         : TextureUsage::transfer_source | TextureUsage::transfer_destination;
+    if (usage & NGFX_TRANSIENT) nu = nu | TextureUsage::transient;
     if (usage & NGFX_SAMPLED) nu = nu | TextureUsage::sampled;
     if (usage & NGFX_COLOR_TARGET) nu = nu | TextureUsage::color_attachment;
     if (usage & NGFX_DEPTH_TARGET) nu = nu | TextureUsage::depth_stencil_attachment;
@@ -157,6 +159,9 @@ RenderView* render_view(TextureSlot* s, uint32 mip, uint32 slice)
 PlacedTexture place_texture(const TextureDesc& desc, int32& chunk)
 {
     const SizeAlign need = get_texture_size_align(g.device, desc);
+    // A TRANSIENT target on Metal is memoryless: no bytes to place, and no
+    // chunk (-1), so unplace_texture destroys it alone.
+    if (need.align && !need.size) return {.texture = create_texture(g.device, desc, {}, 0)};
     const bool alone = need.size > texture_chunk_size / 2;
     if (!alone)
     {
@@ -211,7 +216,13 @@ PlacedTexture place_texture(const TextureDesc& desc, int32& chunk)
 // a heap of its own goes with it.
 void unplace_texture(PlacedTexture& p, int32 chunk)
 {
-    if (chunk < 0 || !p.texture) return;
+    if (!p.texture) return;
+    if (chunk < 0)
+    {
+        destroy_texture(p.texture);
+        p.texture = nullptr;
+        return;
+    }
     g.texture_allocators[size_t(chunk)]->free(p);
     if (!g.texture_alone[size_t(chunk)]) return;
     delete g.texture_allocators[size_t(chunk)];
@@ -259,13 +270,20 @@ bool create_texture(const ngfx_texture_desc& in, uint32* id, TextureSlot** out)
     while (largest >> chain) chain++;
     if (d.mips <= 0 || d.mips > chain) d.mips = chain;
     const uint32 usage = uint32(d.usage);
-    if (!usage || (usage & ~15u)) return ngfx_misuse("texture usage %d is not a combination of the usage flags", d.usage);
+    if (!usage || (usage & ~31u)) return ngfx_misuse("texture usage %d is not a combination of the usage flags", d.usage);
+    if (!d.samples) d.samples = 1;
+    if (d.samples != 1 && d.samples != 4) return ngfx_misuse("a texture of %d samples: 1 or 4", d.samples);
+    const uint32 targets = NGFX_COLOR_TARGET | NGFX_DEPTH_TARGET;
+    if (d.samples > 1 && (d.kind != NGFX_TEXTURE_2D || d.mips != 1 || (usage & ~(targets | NGFX_TRANSIENT))))
+        return ngfx_misuse("a multisampled texture is a 2D target of one mip, with no SAMPLED or STORAGE usage");
+    if ((usage & NGFX_TRANSIENT) && (usage & ~(targets | NGFX_TRANSIENT)))
+        return ngfx_misuse("a TRANSIENT texture is a target alone, with no SAMPLED or STORAGE usage");
     const bool depth = is_depth(format);
     if (depth != ((usage & NGFX_DEPTH_TARGET) != 0))
         return ngfx_misuse(depth ? "a depth format needs DEPTH_TARGET usage" : "DEPTH_TARGET usage needs a depth format");
     if (is_compressed(format) && usage != NGFX_SAMPLED) return ngfx_misuse("a compressed texture can only be SAMPLED");
 
-    const TextureUsage nu = usage_of(usage, depth);
+    const TextureUsage nu = usage_of(usage, depth, d.samples > 1);
     // Metal, and some Vulkan GPUs, have no 24-bit depth; gfx's DEPTH falls
     // back the same way when its first choice is missing.
     if (format == Format::d24_unorm_s8_uint && !supports_texture_format(g.device, format, nu))
@@ -280,7 +298,8 @@ bool create_texture(const ngfx_texture_desc& in, uint32* id, TextureSlot** out)
                    .layer_count = d.kind == NGFX_TEXTURE_CUBE ? 6u
                                 : d.kind == NGFX_TEXTURE_2D_ARRAY ? uint32(d.depth) : 1u,
                    .format = format,
-                   .usage = nu};
+                   .usage = nu,
+                   .sample_count = uint32(d.samples)};
 
     // Texture initialization in a submission of its own, before any upload
     // can reach it, as examples/cube submits its texture's before uploading.
@@ -367,6 +386,8 @@ bool region_bytes(TextureSlot* s, const TextureCopyDesc& c, int64_t len, const c
 
 bool readable(TextureSlot* s, const char* what)
 {
+    if (s->desc.sample_count > 1 || has(s->desc.usage, TextureUsage::transient))
+        return ngfx_misuse("%s: a multisampled or TRANSIENT texture cannot be read back; read its resolved image", what);
     if (is_depth(s->desc.format)) return ngfx_misuse("%s: a depth texture cannot be read back", what);
     if (is_compressed(s->desc.format)) return ngfx_misuse("%s: a compressed texture cannot be read back", what);
     return true;
@@ -520,6 +541,8 @@ uint8_t ngfx_update_texture(ngfx_texture t, const ngfx_region* region, ngfx_byte
     TextureCopyDesc c;
     if (!region_of(s, region, &c, "update_texture") || !region_bytes(s, c, data.len, "update_texture")) return 0;
     if (is_depth(s->desc.format)) return ngfx_misuse("update_texture: a depth texture");
+    if (s->desc.sample_count > 1 || has(s->desc.usage, TextureUsage::transient))
+        return ngfx_misuse("update_texture: a multisampled or TRANSIENT texture");
     upload_texture(s, c, data.data, uint64(data.len));
     return 1;
 }
@@ -568,7 +591,7 @@ uint8_t ngfx_format_supported(int32_t format, int32_t usage)
     if (!texture_format(format, &f) || !usage || (uint32(usage) & ~15u)) return 0;
     if (is_compressed(f) && usage != NGFX_SAMPLED) return 0;
     if (is_depth(f) != ((usage & NGFX_DEPTH_TARGET) != 0)) return 0;
-    const TextureUsage nu = usage_of(uint32(usage), is_depth(f));
+    const TextureUsage nu = usage_of(uint32(usage), is_depth(f), false);
     if (f == Format::d24_unorm_s8_uint && !supports_texture_format(g.device, f, nu)) f = Format::d32_float_s8_uint;
     return supports_texture_format(g.device, f, nu);
 }

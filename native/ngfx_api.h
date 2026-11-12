@@ -53,6 +53,7 @@ typedef struct {
     int32_t width, height;
     int32_t depth;              /* a 3D texture's depth, or an array's layers */
     int32_t mips;               /* 0: the full chain */
+    int32_t samples;            /* 1, or 4 for a multisampled target; 0 reads as 1 */
 } ngfx_texture_desc;
 
 /* Part of one mip of one layer. w == 0 means the whole mip. */
@@ -87,6 +88,7 @@ typedef struct {
     uint8_t clear_color, clear_depth;
     ngfx_float4 color_value;
     float depth_value;
+    ngfx_texture resolve[4]; /* each multisampled color target's single-sample image, or 0 */
 } ngfx_pass_desc;
 
 #pragma pack(pop)
@@ -180,6 +182,7 @@ NGFX_API(NGFX_PROTO)
     X(i32, COLOR_TARGET, 2) \
     X(i32, DEPTH_TARGET, 4) \
     X(i32, STORAGE, 8) \
+    X(i32, TRANSIENT, 16) \
     /* Texture formats. DEPTH is DEPTH32F. */ \
     X(i32, RGBA8, 1) \
     X(i32, BGRA8, 2) \
