@@ -276,8 +276,8 @@ bool create_texture(const ngfx_texture_desc& in, uint32* id, TextureSlot** out)
     const uint32 targets = NGFX_COLOR_TARGET | NGFX_DEPTH_TARGET;
     if (d.samples > 1 && (d.kind != NGFX_TEXTURE_2D || d.mips != 1 || (usage & ~(targets | NGFX_TRANSIENT))))
         return ngfx_misuse("a multisampled texture is a 2D target of one mip, with no SAMPLED or STORAGE usage");
-    if ((usage & NGFX_TRANSIENT) && (usage & ~(targets | NGFX_TRANSIENT)))
-        return ngfx_misuse("a TRANSIENT texture is a target alone, with no SAMPLED or STORAGE usage");
+    if ((usage & NGFX_TRANSIENT) && ((usage & ~(targets | NGFX_TRANSIENT)) || !(usage & targets)))
+        return ngfx_misuse("a TRANSIENT texture is a COLOR_TARGET or DEPTH_TARGET alone, with no SAMPLED or STORAGE usage");
     const bool depth = is_depth(format);
     if (depth != ((usage & NGFX_DEPTH_TARGET) != 0))
         return ngfx_misuse(depth ? "a depth format needs DEPTH_TARGET usage" : "DEPTH_TARGET usage needs a depth format");
@@ -588,7 +588,8 @@ uint8_t ngfx_format_supported(int32_t format, int32_t usage)
 {
     if (!ngfx_need_device("format_supported")) return 0;
     Format f;
-    if (!texture_format(format, &f) || !usage || (uint32(usage) & ~15u)) return 0;
+    if (!texture_format(format, &f) || !usage || (uint32(usage) & ~31u)) return 0;
+    if ((usage & NGFX_TRANSIENT) && !(usage & (NGFX_COLOR_TARGET | NGFX_DEPTH_TARGET))) return 0;
     if (is_compressed(f) && usage != NGFX_SAMPLED) return 0;
     if (is_depth(f) != ((usage & NGFX_DEPTH_TARGET) != 0)) return 0;
     const TextureUsage nu = usage_of(uint32(usage), is_depth(f), false);
