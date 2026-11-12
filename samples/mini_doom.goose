@@ -1459,10 +1459,7 @@ fn main() {
     require(gfx::open("Goose: Mini Doom / Freedoom E1M1", 960, 600, gfx::WINDOW_RESIZABLE | gfx::WINDOW_ONLY),
             gfx::error());
     let window = gfx::screen_size();
-    let display = gfx::native_display();    // Linux's, 0 elsewhere
-    let opened = if display != 0 { ngfx::open_linux(display, gfx::native_window(), gfx::native_kind(), window.x, window.y, 0) }
-                 else { ngfx::open(gfx::native_window(), window.x, window.y, 0) };
-    require(opened, ngfx::error());
+    require(ngfx::open(gfx::native_window(), window.x, window.y, 0, gfx::native_display(), gfx::native_kind()), ngfx::error());
     load_sounds(quiet || frames > 0);
     let atlas = ngfx::texture2d(ATLAS_W, ATLAS_H);
     require(atlas.id != 0 && ngfx::update_texture(atlas, atlas_pixels), ngfx::error());

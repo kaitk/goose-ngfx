@@ -72,12 +72,11 @@ with `goose file.goose` or builds with `goose build file.goose`
 
 ## The platform
 
-ngfx has none. `open(window, width, height, flags)` takes a native window's handle as a
-`u64`: a `CAMetalLayer` on Apple's systems, an `HWND` on Windows, or 0 for headless. On
-Linux a window is a Wayland surface or an X11 window on its display, so
-`open_linux(display, window, kind, width, height, flags)` takes the display and which of
-the two it is (`NATIVE_WAYLAND` or `NATIVE_X11`), as gfx gives them (`native_display()`,
-`native_kind()`).
+ngfx has none. `open(window, width, height, flags, display, kind)` takes a native
+window's handle as a `u64`: a `CAMetalLayer` on Apple's systems, an `HWND` on Windows, or
+0 for headless. On Linux a window is a Wayland surface or an X11 window on its display, so
+`display` and `kind` (`NATIVE_WAYLAND` or `NATIVE_X11`) say which; gfx gives both
+(`native_display()`, `native_kind()`), 0 elsewhere, where they can be left out.
 Goose gfx opened with `WINDOW_ONLY` gives one (`native_window()`), and keeps its window,
 keys, the mouse, events, typed text, the clipboard, fullscreen, pixel density and display
 scale, cursors, gamepads, and time, under the names gfx programs know:
@@ -85,10 +84,7 @@ scale, cursors, gamepads, and time, under the names gfx programs know:
 ```goose
 guard gfx::open("title", w, h, gfx::WINDOW_RESIZABLE | gfx::WINDOW_ONLY) else { ... }
 let size = gfx::screen_size();
-let display = gfx::native_display();             // Linux's, 0 elsewhere
-let opened = if display != 0 { ngfx::open_linux(display, gfx::native_window(), gfx::native_kind(), size.x, size.y, 0) }
-             else { ngfx::open(gfx::native_window(), size.x, size.y, 0) };
-guard opened else { ... }
+guard ngfx::open(gfx::native_window(), size.x, size.y, 0, gfx::native_display(), gfx::native_kind()) else { ... }
 while gfx::frame() {                              // events; waits when idle
     ngfx::resize(gfx::screen_size());             // the screen follows the window
     if changed || gfx::needs_present() { ... }    // draw into screen()

@@ -67,10 +67,10 @@ Pro) at the Goose pin below: the API check, every test, and every sample pass, r
 the compiler and built. iOS 26 runs on an iPhone 13 mini (A15), in Draughts; iPadOS
 builds the same and is untried. Windows with Vulkan passed at v0.3.0 and is not yet run
 at v0.4.0 or this release, which change how ngfx gets its window and presents. On Linux,
-ngfx presents on Wayland, or on X11 where there is none (`open_linux`), and needs a GPU
-whose Vulkan driver has `VK_EXT_descriptor_heap` (Mesa RADV 26.2 or later, or NVIDIA's):
-every test and sample passes on an RX 6800 (RADV, Mesa 26.2.4), and the samples present
-in a window under GNOME 50, on Wayland and through XWayland
+ngfx presents on Wayland, or on X11 where there is none (`open`'s display and kind), and
+needs a GPU whose Vulkan driver has `VK_EXT_descriptor_heap` (Mesa RADV 26.2 or later, or
+NVIDIA's): every test and sample passes on an RX 6800 (RADV, Mesa 26.2.4), and the
+samples present in a window under GNOME 50, on Wayland and through XWayland
 ([docs/development.md](docs/development.md#linux)).
 
 ## Layout

@@ -1444,10 +1444,7 @@ fn main() {
         return;
     }
     let window = gfx::screen_size();
-    let display = gfx::native_display();    // Linux's, 0 elsewhere
-    let opened = if display != 0 { ngfx::open_linux(display, gfx::native_window(), gfx::native_kind(), window.x, window.y, 0) }
-                 else { ngfx::open(gfx::native_window(), window.x, window.y, 0) };
-    guard opened else {
+    guard ngfx::open(gfx::native_window(), window.x, window.y, 0, gfx::native_display(), gfx::native_kind()) else {
         write_stderr(str("ngfx: ", ngfx::error(), "\n"));
         return;
     }

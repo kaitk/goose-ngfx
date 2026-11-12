@@ -205,9 +205,10 @@ measurements and do not establish performance parity with gfx.
 
 ## Linux
 
-`ngfx::open_linux` presents into gfx's window: a Wayland surface, or an X11 window where
-SDL opened X11 (`SDL_VIDEO_DRIVER=x11` asks for it, through XWayland on a Wayland
-desktop). `ngfx::open` given a window is a misuse there. A machine without a qualifying
+`ngfx::open` presents into gfx's window: a Wayland surface, or an X11 window where SDL
+opened X11 (`SDL_VIDEO_DRIVER=x11` asks for it, through XWayland on a Wayland desktop),
+given gfx's `native_display()` and `native_kind()`; a window without them is a misuse
+there. A machine without a qualifying
 Vulkan driver gets "no NoGraphicsAPI device ... No compatible GPU found", which names the
 extensions, and the runner counts it as a skip.
 

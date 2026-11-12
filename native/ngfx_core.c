@@ -112,17 +112,18 @@ uint8_t ngfx_available(void) { return 1; }
 
 /* The device, drawing into `window`; on Linux a Wayland surface or an X11
    window, as `kind` says, on `display`. */
-static uint8_t ngfx_open_on(uint64_t display, uint64_t window, int64_t kind, int64_t width,
-                            int64_t height, int64_t flags) {
+uint8_t ngfx_open(uint64_t window, int64_t width, int64_t height, int64_t flags,
+                  uint64_t display, int64_t kind) {
     if (!ngfx_need_main_thread("open")) return 0;
     if (ngfx.open) return ngfx_misuse("ngfx is already open: close() it first");
     if (width < 1 || height < 1 || width > 16384 || height > 16384)
         return ngfx_misuse("a screen of %lld x %lld pixels", (long long)width, (long long)height);
     void *layer = (void *)(uintptr_t)window;
 #if defined(__linux__) && !defined(__ANDROID__)
-    if (layer && !display) return ngfx_misuse("open() on Linux: open_linux() takes the window's display");
-    if (layer && kind != NGFX_NATIVE_WAYLAND && kind != NGFX_NATIVE_X11)
-        return ngfx_misuse("open_linux() with a window of kind %lld", (long long)kind);
+    if (layer && (!display || (kind != NGFX_NATIVE_WAYLAND && kind != NGFX_NATIVE_X11)))
+        return ngfx_misuse("open() on Linux takes the window's display and kind (gfx's "
+                           "native_display() and native_kind()), not %llx and %lld",
+                           (unsigned long long)display, (long long)kind);
 #elif !defined(__APPLE__) && !defined(_WIN32)
     if (layer) return ngfx_fail("NoGraphicsAPI cannot present on this platform; open headless");
 #endif
@@ -152,17 +153,8 @@ static uint8_t ngfx_open_on(uint64_t display, uint64_t window, int64_t kind, int
     return true;
 }
 
-uint8_t ngfx_open(uint64_t window, int64_t width, int64_t height, int64_t flags) {
-    return ngfx_open_on(0, window, 0, width, height, flags);
-}
-
-uint8_t ngfx_open_linux(uint64_t display, uint64_t window, int64_t kind, int64_t width,
-                        int64_t height, int64_t flags) {
-    return ngfx_open_on(display, window, kind, width, height, flags);
-}
-
 uint8_t ngfx_open_headless(int64_t width, int64_t height, int64_t flags) {
-    return ngfx_open_on(0, 0, 0, width, height, flags);
+    return ngfx_open(0, width, height, flags, 0, 0);
 }
 
 void ngfx_close(void) {

@@ -94,8 +94,7 @@ typedef struct {
 #define NGFX_API(X) \
     /* Device and frames. */ \
     X(uint8_t, ngfx_available, (void)) \
-    X(uint8_t, ngfx_open, (uint64_t window, int64_t width, int64_t height, int64_t flags)) \
-    X(uint8_t, ngfx_open_linux, (uint64_t display, uint64_t window, int64_t kind, int64_t width, int64_t height, int64_t flags)) \
+    X(uint8_t, ngfx_open, (uint64_t window, int64_t width, int64_t height, int64_t flags, uint64_t display, int64_t kind)) \
     X(uint8_t, ngfx_open_headless, (int64_t width, int64_t height, int64_t flags)) \
     X(void, ngfx_close, (void)) \
     X(void, ngfx_error, (gs_rref out)) \
@@ -168,7 +167,7 @@ NGFX_API(NGFX_PROTO)
 #define NGFX_CONSTANTS(X) \
     /* open() and open_headless() flags. */ \
     X(i32, NO_VSYNC, 16) \
-    /* open_linux()'s window kinds, gfx's native_kind(). */ \
+    /* open()'s window kinds on Linux, gfx's native_kind(). */ \
     X(i32, NATIVE_WAYLAND, 1) \
     X(i32, NATIVE_X11, 2) \
     /* Texture kinds. */ \

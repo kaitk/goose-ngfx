@@ -125,7 +125,7 @@ def parse_goose(text, prefix):
             text, re.S):
         ps = []
         for p in split_top(params):
-            _, _, t = p.partition(":")
+            t = p.partition(":")[2].partition("=")[0]    # a default value crosses as its type
             ps.append(c_of(t, prefix))
         fns[sym] = (c_of(ret, prefix) if ret.strip() else "void", ps, name)
     structs = {}
